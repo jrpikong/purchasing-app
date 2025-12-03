@@ -43,21 +43,16 @@ class PurchaseRequestSentForApprovalNotification extends Notification implements
         // create temporary signed route; expires in 7 days by default (or use $this->expiresAt)
         $expires = $this->expiresAt ?? now()->addDays(7);
 
-        $url = URL::temporarySignedRoute(
+        // IMPORTANT: include token AS A PARAMETER when creating the signed route
+        return URL::temporarySignedRoute(
             'pr.approve.link',
             $expires,
             [
                 'id' => $pr->id,
                 'approver_id' => $approverId,
+                'token' => $this->token, // <-- include token here (do NOT append later)
             ]
         );
-
-        // include token as query param if available (some implementations check token)
-        if ($this->token) {
-            $url .= (str_contains($url, '?') ? '&' : '?') . 'token=' . urlencode($this->token);
-        }
-
-        return $url;
     }
 
     public function toMail(object $notifiable): MailMessage
