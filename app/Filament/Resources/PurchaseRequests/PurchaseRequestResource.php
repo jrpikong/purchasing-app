@@ -23,11 +23,13 @@ class PurchaseRequestResource extends Resource
 {
     protected static ?string $model = PurchaseRequest::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingCart;
 
     protected static string|UnitEnum|null $navigationGroup = 'Purchase Request';
-    
+
     protected static ?string $recordTitleAttribute = 'pr_number';
+
+    protected static ?int $navigationSort = 1;
 
     public static function form(Schema $schema): Schema
     {
@@ -67,5 +69,20 @@ class PurchaseRequestResource extends Resource
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        // Show count of pending approvals for current user
+        $count = static::getModel()::where('current_approver_id', auth()->id())
+            ->where('status', 'waiting_approval')
+            ->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
     }
 }

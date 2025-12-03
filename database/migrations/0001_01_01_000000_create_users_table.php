@@ -22,6 +22,7 @@ return new class extends Migration
             $table->string('position', 100)->nullable();
             $table->string('employee_id', 50)->nullable()->unique();
             $table->string('phone', 20)->nullable();
+            $table->boolean('is_admin')->default(false);
             $table->boolean('is_active')->default(true);
             $table->rememberToken();
             $table->timestamps();

@@ -25,6 +25,7 @@ class ApprovalHistory extends Model
         'token_expired_at',
         'ip_address',
         'user_agent',
+        'actor_id',
     ];
 
     /**
@@ -57,18 +58,14 @@ class ApprovalHistory extends Model
     /**
      * Get the approver.
      */
-    public function approver()
+    public function actor()
     {
-        return $this->belongsTo(User::class, 'approver_id');
+        return $this->belongsTo(User::class, 'actor_id');
     }
 
-    /**
-     * Check if token is valid
-     */
-    public function isTokenValid()
+    public function nextApprover()
     {
-        return $this->token_expired_at > now() &&
-            $this->action === self::ACTION_PENDING;
+        return $this->belongsTo(User::class, 'next_approver_id');
     }
 
     /**
@@ -175,14 +172,5 @@ class ApprovalHistory extends Model
     public function scopePending($query)
     {
         return $query->where('action', self::ACTION_PENDING);
-    }
-
-    /**
-     * Scope for valid tokens
-     */
-    public function scopeValidToken($query)
-    {
-        return $query->where('token_expired_at', '>', now())
-            ->where('action', self::ACTION_PENDING);
     }
 }

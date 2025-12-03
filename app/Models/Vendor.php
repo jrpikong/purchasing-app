@@ -49,17 +49,9 @@ class Vendor extends Model
 
         static::creating(function ($model) {
             if (empty($model->vendor_code)) {
-                $model->vendor_code = $model->generateVendorCode();
+                $model->vendor_code = self::generateVendorCode();
             }
         });
-    }
-
-    /**
-     * Get the PR items from this vendor.
-     */
-    public function prItems()
-    {
-        return $this->hasMany(PrItem::class);
     }
 
     /**
@@ -73,7 +65,7 @@ class Vendor extends Model
     /**
      * Generate vendor code
      */
-    public function generateVendorCode()
+    public function generateVendorCode(): string
     {
         $lastVendor = self::latest('id')->first();
         $sequence = $lastVendor ?
