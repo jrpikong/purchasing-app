@@ -24,13 +24,16 @@ class PurchaseRequestApprovalService
     public function create(array $data, User $requester): PurchaseRequest
     {
         return DB::transaction(function () use ($data, $requester) {
-            // Create PR
+            // Use enum for default status
+            $status = PurchaseRequestStatus::DRAFT;
+
+            // Create PR (model casts will convert enum to string if configured)
             $pr = PurchaseRequest::create([
                 ...$data,
                 'requester_id' => $requester->id,
-                'status' => 'draft',
+                'status' => $status,
                 'submitted_at' => now(),
-                'submitted_from' => request()->ip(),
+                'submitted_from' => request()?->ip() ?? null,
             ]);
 
             // Log history
@@ -39,17 +42,17 @@ class PurchaseRequestApprovalService
                 actor: $requester,
                 action: 'created',
                 fromStatus: null,
-                toStatus: 'draft',
+                toStatus: $status,
                 comment: 'Purchase request created'
             );
 
-            // Notify all admins (users with admin role)
-            $admins = User::where('is_admin', true)->get(); // sesuaikan dengan role system Anda
+            // Notify all admins (customize role check as needed)
+            $admins = User::where('is_admin', true)->get();
             foreach ($admins as $admin) {
                 $admin->notify(new PurchaseRequestCreatedNotification($pr));
             }
 
-            return $pr;
+            return $pr->fresh();
         });
     }
 
@@ -65,13 +68,13 @@ class PurchaseRequestApprovalService
                 'assigned_pic_id' => $pic->id,
             ]);
 
-            // Log history
+            // Log history (store current status as from/to)
             $this->logHistory(
                 pr: $pr,
                 actor: $actor,
                 action: 'assigned_pic',
-                fromStatus: $pr->status,
-                toStatus: $pr->status,
+                fromStatus: $pr->getStatusValue(),
+                toStatus: $pr->getStatusValue(),
                 comment: "Assigned to {$pic->name}",
                 nextApproverId: $pic->id,
                 meta: ['old_pic_id' => $oldPicId]
@@ -93,18 +96,26 @@ class PurchaseRequestApprovalService
         User $actor,
         ?Carbon $deadline = null
     ): PurchaseRequest {
-        // Validate state
-        if (!in_array($pr->status, ['draft', 'in_review', 'need_revision'])) {
-            throw new Exception("Cannot send for approval. Current status: {$pr->status}");
+        // Normalize current status to string
+        $currentStatus = $pr->getStatusValue();
+
+        // Validate state (allow draft, in_review, need_revision)
+        if (! in_array($currentStatus, [
+            PurchaseRequestStatus::DRAFT->value,
+            PurchaseRequestStatus::IN_REVIEW->value,
+            PurchaseRequestStatus::NEED_REVISION->value,
+        ], true)) {
+            throw new Exception("Cannot send for approval. Current status: {$currentStatus}");
         }
 
-        return DB::transaction(function () use ($pr, $approver, $actor, $deadline) {
+        return DB::transaction(function () use ($pr, $approver, $actor, $deadline, $currentStatus) {
             // Generate approval token
             $token = Str::random(64);
             $tokenExpiry = now()->addDays(7); // Token valid for 7 days
 
             $pr->update([
-                'status' => 'waiting_approval',
+                // assign enum; model cast will persist string
+                'status' => PurchaseRequestStatus::WAITING_APPROVAL,
                 'current_approver_id' => $approver->id,
                 'sent_for_approval_at' => now(),
                 'approval_deadline' => $deadline,
@@ -112,19 +123,19 @@ class PurchaseRequestApprovalService
                 'approval_token_expires_at' => $tokenExpiry,
             ]);
 
-            // Log history
+            // Log history: from previous status -> waiting_approval
             $this->logHistory(
                 pr: $pr,
                 actor: $actor,
                 action: 'sent_for_approval',
-                fromStatus: 'draft',
-                toStatus: 'waiting_approval',
+                fromStatus: $currentStatus,
+                toStatus: PurchaseRequestStatus::WAITING_APPROVAL,
                 comment: "Sent to {$approver->name} for approval",
                 nextApproverId: $approver->id
             );
 
-            // Send email notification to approver
-            $approver->notify(new PurchaseRequestSentForApprovalNotification($pr, $token));
+            // Send email notification to approver (include token + expiry)
+            $approver->notify(new PurchaseRequestSentForApprovalNotification($pr, $token, $tokenExpiry));
 
             return $pr->fresh();
         });
@@ -138,9 +149,10 @@ class PurchaseRequestApprovalService
         User $actor,
         ?string $comment = null
     ): PurchaseRequest {
-        // Validate state
-        if (!$pr->canBeApproved()) {
-            throw new Exception("Cannot approve. Current status: {$pr->status}");
+        // Validate state using normalized value
+        if (! $pr->canBeApproved()) {
+            $status = $pr->getStatusValue();
+            throw new Exception("Cannot approve. Current status: {$status}");
         }
 
         // Validate approver
@@ -153,12 +165,13 @@ class PurchaseRequestApprovalService
             $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
 
             // Double-check status after lock
-            if (!$pr->canBeApproved()) {
-                throw new Exception("Request has already been processed.");
+            if (! $pr->canBeApproved()) {
+                $status = $pr->getStatusValue();
+                throw new Exception("Request has already been processed. Current status: {$status}");
             }
 
             $pr->update([
-                'status' => 'approved',
+                'status' => PurchaseRequestStatus::APPROVED,
                 'approved_at' => now(),
                 'final_approver_id' => $actor->id,
                 'current_approver_id' => null,
@@ -171,8 +184,8 @@ class PurchaseRequestApprovalService
                 pr: $pr,
                 actor: $actor,
                 action: 'approved',
-                fromStatus: 'waiting_approval',
-                toStatus: 'approved',
+                fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                toStatus: PurchaseRequestStatus::APPROVED,
                 comment: $comment ?? 'Purchase request approved'
             );
 
@@ -193,8 +206,9 @@ class PurchaseRequestApprovalService
         ?string $comment = null
     ): PurchaseRequest {
         // Validate state
-        if (!$pr->canBeRejected()) {
-            throw new Exception("Cannot reject. Current status: {$pr->status}");
+        if (! $pr->canBeRejected()) {
+            $status = $pr->getStatusValue();
+            throw new Exception("Cannot reject. Current status: {$status}");
         }
 
         // Validate approver
@@ -207,12 +221,13 @@ class PurchaseRequestApprovalService
             $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
 
             // Double-check status after lock
-            if (!$pr->canBeRejected()) {
-                throw new Exception("Request has already been processed.");
+            if (! $pr->canBeRejected()) {
+                $status = $pr->getStatusValue();
+                throw new Exception("Request has already been processed. Current status: {$status}");
             }
 
             $pr->update([
-                'status' => 'rejected',
+                'status' => PurchaseRequestStatus::REJECTED,
                 'rejected_at' => now(),
                 'rejection_reason' => $reason,
                 'final_approver_id' => $actor->id,
@@ -226,8 +241,8 @@ class PurchaseRequestApprovalService
                 pr: $pr,
                 actor: $actor,
                 action: 'rejected',
-                fromStatus: 'waiting_approval',
-                toStatus: 'rejected',
+                fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                toStatus: PurchaseRequestStatus::REJECTED,
                 comment: $comment ?? $reason
             );
 
@@ -238,9 +253,6 @@ class PurchaseRequestApprovalService
         });
     }
 
-    /**
-     * Log approval history
-     */
     /**
      * Log approval history
      *
@@ -279,7 +291,6 @@ class PurchaseRequestApprovalService
             'meta' => $meta,
         ]);
     }
-
 
     /**
      * Validate approval token
