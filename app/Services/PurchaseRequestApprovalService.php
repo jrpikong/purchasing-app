@@ -156,7 +156,7 @@ class PurchaseRequestApprovalService
         }
 
         // Validate approver
-        if ($pr->current_approver_id !== $actor->id) {
+        if ((int)$pr->current_approver_id !== $actor->id) {
             throw new Exception("You are not authorized to approve this request.");
         }
 
@@ -212,7 +212,7 @@ class PurchaseRequestApprovalService
         }
 
         // Validate approver
-        if ($pr->current_approver_id !== $actor->id) {
+        if ((int)$pr->current_approver_id !== $actor->id) {
             throw new Exception("You are not authorized to reject this request.");
         }
 

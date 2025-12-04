@@ -178,7 +178,7 @@ class PurchaseRequestPolicy
         ]);
 
         return $status === PurchaseRequestStatus::WAITING_APPROVAL->value
-            && $purchaseRequest->current_approver_id == $user->id;
+            && (int)$purchaseRequest->current_approver_id == $user->id;
     }
 
     /**
