@@ -180,14 +180,14 @@ class PurchaseRequestPolicy
      * Helper: return status as string value
      * Accepts enum instance (PurchaseRequestStatus), or string, or null.
      */
-    private function statusValue(PurchaseRequest|object $purchaseRequest): ?string
+    private function statusValue(PurchaseRequest $purchaseRequest): ?string
     {
         // Prefer model helper if exists
         if (method_exists($purchaseRequest, 'getStatusValue')) {
             return $purchaseRequest->getStatusValue();
         }
 
-        // Fallback: try to access attribute and normalize
+        // Fallback (should rarely be used)
         $status = $purchaseRequest->status ?? null;
 
         if ($status instanceof PurchaseRequestStatus) {
