@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PurchaseRequests\Pages;
 use App\Filament\Resources\PurchaseRequests\PurchaseRequestResource;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 
 class ListPurchaseRequests extends ListRecords
 {
@@ -16,4 +17,5 @@ class ListPurchaseRequests extends ListRecords
             CreateAction::make(),
         ];
     }
+
 }

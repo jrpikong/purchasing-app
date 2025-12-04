@@ -407,4 +407,28 @@ class PurchaseRequest extends Model
     {
         return $query->whereBetween('request_date', [$startDate, $endDate]);
     }
+
+    /**
+     * Scope: visible to user (privacy filter)
+     * User can only see PR if they are involved
+     */
+    public function scopeVisibleToUser($query, User $user)
+    {
+        // Admin can see all
+        if ($user->is_admin) {
+            return $query;
+        }
+
+        // Non-admin can only see PR where they are involved
+        return $query->where(function($q) use ($user) {
+            $q->where('requester_id', $user->id)
+                ->orWhere('assigned_pic_id', $user->id)
+                ->orWhere('current_approver_id', $user->id)
+                ->orWhere('final_approver_id', $user->id)
+                ->orWhereHas('approvalHistories', function($historyQuery) use ($user) {
+                    $historyQuery->where('actor_id', $user->id)
+                        ->orWhere('next_approver_id', $user->id);
+                });
+        });
+    }
 }

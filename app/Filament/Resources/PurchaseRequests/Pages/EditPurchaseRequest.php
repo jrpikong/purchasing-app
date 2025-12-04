@@ -17,9 +17,26 @@ class EditPurchaseRequest extends EditRecord
     {
         return [
             ViewAction::make(),
-            DeleteAction::make(),
-            ForceDeleteAction::make(),
-            RestoreAction::make(),
+            DeleteAction::make()
+                ->visible(fn ($record) => auth()->user()->can('delete', $record)),
+            ForceDeleteAction::make()
+                ->visible(fn ($record) => auth()->user()->can('forceDelete', $record)),
+            RestoreAction::make()
+                ->visible(fn ($record) => auth()->user()->can('restore', $record)),
         ];
+    }
+
+    /**
+     * Authorize access - ensure user can edit this PR
+     */
+    protected function authorizeAccess(): void
+    {
+        parent::authorizeAccess();
+
+        abort_unless(
+            auth()->user()->can('update', $this->getRecord()),
+            403,
+            'You do not have permission to edit this purchase request.'
+        );
     }
 }

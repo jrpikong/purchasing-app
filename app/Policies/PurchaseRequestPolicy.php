@@ -15,7 +15,8 @@ class PurchaseRequestPolicy
      */
     public function viewAny(User $user): bool
     {
-        // All authenticated users can view list
+        // All authenticated users can view the list page
+        // But the query will be filtered in Filament Resource
         return true;
     }
 
@@ -25,14 +26,33 @@ class PurchaseRequestPolicy
     public function view(User $user, PurchaseRequest $purchaseRequest): bool
     {
         // User can view if:
-        // - They are admin
+        // - They are admin (can see all)
         // - They are the requester
         // - They are assigned PIC
         // - They are current approver
-        return $user->is_admin
-            || $purchaseRequest->requester_id === $user->id
+        // - They were ever involved in approval history
+
+        if ($user->is_admin) {
+            return true;
+        }
+
+        // Check if user is directly involved
+        if ($purchaseRequest->requester_id === $user->id
             || $purchaseRequest->assigned_pic_id === $user->id
-            || $purchaseRequest->current_approver_id === $user->id;
+            || $purchaseRequest->current_approver_id === $user->id
+            || $purchaseRequest->final_approver_id === $user->id) {
+            return true;
+        }
+
+        // Check if user was involved in approval history
+        $wasInvolved = $purchaseRequest->approvalHistories()
+            ->where(function($query) use ($user) {
+                $query->where('actor_id', $user->id)
+                    ->orWhere('next_approver_id', $user->id);
+            })
+            ->exists();
+
+        return $wasInvolved;
     }
 
     /**
@@ -57,7 +77,8 @@ class PurchaseRequestPolicy
         }
 
         if ($purchaseRequest->requester_id === $user->id) {
-            return in_array($purchaseRequest->status->value, [
+            $status = $this->getStatusValue($purchaseRequest->status);
+            return in_array($status, [
                 PurchaseRequest::STATUS_DRAFT,
                 PurchaseRequest::STATUS_NEED_REVISION,
             ]);
@@ -76,8 +97,9 @@ class PurchaseRequestPolicy
             return true;
         }
 
+        $status = $this->getStatusValue($purchaseRequest->status);
         return $purchaseRequest->requester_id === $user->id
-            && $purchaseRequest->status->value === PurchaseRequest::STATUS_DRAFT;
+            && $status === PurchaseRequest::STATUS_DRAFT;
     }
 
     /**
@@ -112,7 +134,9 @@ class PurchaseRequestPolicy
     {
         // Admin or assigned PIC can send for approval
         // Status must be draft or need_revision
-        if (!in_array($purchaseRequest->status->value, [
+        $status = $this->getStatusValue($purchaseRequest->status);
+
+        if (!in_array($status, [
             PurchaseRequest::STATUS_DRAFT,
             PurchaseRequest::STATUS_NEED_REVISION,
         ])) {
@@ -130,7 +154,9 @@ class PurchaseRequestPolicy
         // User can approve if:
         // - Status is waiting_approval
         // - User is the current approver
-        return $purchaseRequest->status->value === PurchaseRequest::STATUS_WAITING_APPROVAL
+        $status = $this->getStatusValue($purchaseRequest->status);
+
+        return $status === PurchaseRequest::STATUS_WAITING_APPROVAL
             && $purchaseRequest->current_approver_id === $user->id;
     }
 
@@ -150,7 +176,9 @@ class PurchaseRequestPolicy
     {
         // Admin or requester can cancel
         // Cannot cancel if already completed or cancelled
-        if (in_array($purchaseRequest->status->value, [
+        $status = $this->getStatusValue($purchaseRequest->status);
+
+        if (in_array($status, [
             PurchaseRequest::STATUS_COMPLETED,
             PurchaseRequest::STATUS_CANCELLED,
         ])) {
@@ -158,5 +186,19 @@ class PurchaseRequestPolicy
         }
 
         return $user->is_admin || $purchaseRequest->requester_id === $user->id;
+    }
+
+    /**
+     * Helper: Get status value (supports both Enum and string)
+     */
+    private function getStatusValue(mixed $status): string
+    {
+        // If it's an Enum instance, get the value
+        if (is_object($status) && method_exists($status, 'value')) {
+            return $status->value;
+        }
+
+        // If it's already a string, return as is
+        return (string) $status->value;
     }
 }

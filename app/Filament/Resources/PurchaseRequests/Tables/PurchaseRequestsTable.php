@@ -33,6 +33,7 @@ class PurchaseRequestsTable
     public static function configure(Tables\Table $table): Tables\Table
     {
         return $table
+
             ->columns([
                 TextColumn::make('pr_number')
                     ->label('PR #')

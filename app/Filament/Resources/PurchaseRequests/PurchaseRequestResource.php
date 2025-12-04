@@ -71,6 +71,15 @@ class PurchaseRequestResource extends Resource
             ]);
     }
 
+    /**
+     * Apply privacy filter to table query
+     * Users can only see PRs they are involved with
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->visibleToUser(auth()->user());
+    }
+
     public static function getNavigationBadge(): ?string
     {
         // Show count of pending approvals for current user
