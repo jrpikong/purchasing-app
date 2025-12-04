@@ -6,6 +6,7 @@ use App\Enums\PurchaseRequestStatus;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Support\Facades\Log;
 
 class PurchaseRequestPolicy
 {
@@ -31,26 +32,45 @@ class PurchaseRequestPolicy
             return true;
         }
 
-        // Direct involvement checks
+        // Normalize ids to integers to avoid loose type mismatches
+        $requesterId = $purchaseRequest->requester_id !== null ? (int) $purchaseRequest->requester_id : null;
+        $assignedPicId = $purchaseRequest->assigned_pic_id !== null ? (int) $purchaseRequest->assigned_pic_id : null;
+        $currentApproverId = $purchaseRequest->current_approver_id !== null ? (int) $purchaseRequest->current_approver_id : null;
+        $finalApproverId = $purchaseRequest->final_approver_id !== null ? (int) $purchaseRequest->final_approver_id : null;
+        $userId = (int) $user->id;
+
+        // Direct involvement checks (creator, PIC, current approver, final approver)
         if (
-            $purchaseRequest->requester_id === $user->id
-            || $purchaseRequest->assigned_pic_id === $user->id
-            || $purchaseRequest->current_approver_id === $user->id
-            || $purchaseRequest->final_approver_id === $user->id
+            $requesterId === $userId
+            || $assignedPicId === $userId
+            || $currentApproverId === $userId
+            || $finalApproverId === $userId
         ) {
             return true;
         }
 
-        // In approval history?
+        // Check approval history involvement
         $wasInvolved = $purchaseRequest->approvalHistories()
-            ->where(function ($query) use ($user) {
-                $query->where('actor_id', $user->id)
-                    ->orWhere('next_approver_id', $user->id);
+            ->where(function($query) use ($userId) {
+                $query->where('actor_id', $userId)
+                    ->orWhere('next_approver_id', $userId);
             })
             ->exists();
 
+        if (! $wasInvolved) {
+            Log::warning('PR view denied', [
+                'user_id' => $user->id,
+                'pr_id' => $purchaseRequest->id,
+                'requester_id' => $purchaseRequest->requester_id,
+                'assigned_pic_id' => $purchaseRequest->assigned_pic_id,
+                'current_approver_id' => $purchaseRequest->current_approver_id,
+                'final_approver_id' => $purchaseRequest->final_approver_id,
+            ]);
+        }
+
         return (bool) $wasInvolved;
     }
+
 
     /**
      * Determine whether the user can create models.
@@ -146,7 +166,6 @@ class PurchaseRequestPolicy
     public function approve(User $user, PurchaseRequest $purchaseRequest): bool
     {
         $status = $this->statusValue($purchaseRequest);
-
         return $status === PurchaseRequestStatus::WAITING_APPROVAL->value
             && $purchaseRequest->current_approver_id === $user->id;
     }
