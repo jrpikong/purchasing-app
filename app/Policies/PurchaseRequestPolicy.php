@@ -166,8 +166,19 @@ class PurchaseRequestPolicy
     public function approve(User $user, PurchaseRequest $purchaseRequest): bool
     {
         $status = $this->statusValue($purchaseRequest);
+
+        \Illuminate\Support\Facades\Log::debug('Policy.approve check', [
+            'user_id' => $user->id,
+            'pr_id' => $purchaseRequest->id,
+            'current_approver_id' => $purchaseRequest->current_approver_id,
+            'status_raw' => $purchaseRequest->status,
+            'status_value' => $status,
+            'expected' => PurchaseRequestStatus::WAITING_APPROVAL->value,
+            'result_condition' => ($status === PurchaseRequestStatus::WAITING_APPROVAL->value && $purchaseRequest->current_approver_id == $user->id),
+        ]);
+
         return $status === PurchaseRequestStatus::WAITING_APPROVAL->value
-            && $purchaseRequest->current_approver_id === $user->id;
+            && $purchaseRequest->current_approver_id == $user->id;
     }
 
     /**
