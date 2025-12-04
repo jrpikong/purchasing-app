@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PurchaseRequests\Tables;
 
+use App\Filament\Exports\PurchaseRequestExporter;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use App\Services\PurchaseRequestApprovalService;
@@ -9,6 +10,7 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ExportAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
@@ -385,6 +387,10 @@ class PurchaseRequestsTable
                             ->send();
                     }),
 
+            ])
+            ->headerActions([
+                ExportAction::make()
+                    ->exporter(PurchaseRequestExporter::class),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
