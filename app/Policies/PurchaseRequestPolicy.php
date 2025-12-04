@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\PurchaseRequestStatus;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -12,11 +13,11 @@ class PurchaseRequestPolicy
 
     /**
      * Determine whether the user can view any models.
+     * Filament Resource already applies a visibility scope (visibleToUser),
+     * but returning true here lets index page render (query will be filtered).
      */
     public function viewAny(User $user): bool
     {
-        // All authenticated users can view the list page
-        // But the query will be filtered in Filament Resource
         return true;
     }
 
@@ -25,34 +26,30 @@ class PurchaseRequestPolicy
      */
     public function view(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // User can view if:
-        // - They are admin (can see all)
-        // - They are the requester
-        // - They are assigned PIC
-        // - They are current approver
-        // - They were ever involved in approval history
-
+        // Admin sees everything
         if ($user->is_admin) {
             return true;
         }
 
-        // Check if user is directly involved
-        if ($purchaseRequest->requester_id === $user->id
+        // Direct involvement checks
+        if (
+            $purchaseRequest->requester_id === $user->id
             || $purchaseRequest->assigned_pic_id === $user->id
             || $purchaseRequest->current_approver_id === $user->id
-            || $purchaseRequest->final_approver_id === $user->id) {
+            || $purchaseRequest->final_approver_id === $user->id
+        ) {
             return true;
         }
 
-        // Check if user was involved in approval history
+        // In approval history?
         $wasInvolved = $purchaseRequest->approvalHistories()
-            ->where(function($query) use ($user) {
+            ->where(function ($query) use ($user) {
                 $query->where('actor_id', $user->id)
                     ->orWhere('next_approver_id', $user->id);
             })
             ->exists();
 
-        return $wasInvolved;
+        return (bool) $wasInvolved;
     }
 
     /**
@@ -60,7 +57,7 @@ class PurchaseRequestPolicy
      */
     public function create(User $user): bool
     {
-        // All authenticated users can create PR
+        // All authenticated users may create PRs
         return true;
     }
 
@@ -69,19 +66,18 @@ class PurchaseRequestPolicy
      */
     public function update(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // User can update if:
-        // - They are admin
-        // - They are the requester AND status is draft or need_revision
+        // Admin can always update
         if ($user->is_admin) {
             return true;
         }
 
+        // Requester can update only when draft or need_revision
         if ($purchaseRequest->requester_id === $user->id) {
-            $status = $this->getStatusValue($purchaseRequest->status);
+            $status = $this->statusValue($purchaseRequest);
             return in_array($status, [
-                PurchaseRequest::STATUS_DRAFT,
-                PurchaseRequest::STATUS_NEED_REVISION,
-            ]);
+                PurchaseRequestStatus::DRAFT->value,
+                PurchaseRequestStatus::NEED_REVISION->value,
+            ], true);
         }
 
         return false;
@@ -92,14 +88,13 @@ class PurchaseRequestPolicy
      */
     public function delete(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // Only admin or requester (if draft) can delete
         if ($user->is_admin) {
             return true;
         }
 
-        $status = $this->getStatusValue($purchaseRequest->status);
+        $status = $this->statusValue($purchaseRequest);
         return $purchaseRequest->requester_id === $user->id
-            && $status === PurchaseRequest::STATUS_DRAFT;
+            && $status === PurchaseRequestStatus::DRAFT->value;
     }
 
     /**
@@ -132,17 +127,16 @@ class PurchaseRequestPolicy
      */
     public function sendForApproval(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // Admin or assigned PIC can send for approval
-        // Status must be draft or need_revision
-        $status = $this->getStatusValue($purchaseRequest->status);
+        $status = $this->statusValue($purchaseRequest);
 
-        if (!in_array($status, [
-            PurchaseRequest::STATUS_DRAFT,
-            PurchaseRequest::STATUS_NEED_REVISION,
-        ])) {
+        if (! in_array($status, [
+            PurchaseRequestStatus::DRAFT->value,
+            PurchaseRequestStatus::NEED_REVISION->value,
+        ], true)) {
             return false;
         }
 
+        // admin or assigned PIC can send for approval
         return $user->is_admin || $purchaseRequest->assigned_pic_id === $user->id;
     }
 
@@ -151,12 +145,9 @@ class PurchaseRequestPolicy
      */
     public function approve(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // User can approve if:
-        // - Status is waiting_approval
-        // - User is the current approver
-        $status = $this->getStatusValue($purchaseRequest->status);
+        $status = $this->statusValue($purchaseRequest);
 
-        return $status === PurchaseRequest::STATUS_WAITING_APPROVAL
+        return $status === PurchaseRequestStatus::WAITING_APPROVAL->value
             && $purchaseRequest->current_approver_id === $user->id;
     }
 
@@ -165,7 +156,6 @@ class PurchaseRequestPolicy
      */
     public function reject(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // Same as approve
         return $this->approve($user, $purchaseRequest);
     }
 
@@ -174,14 +164,12 @@ class PurchaseRequestPolicy
      */
     public function cancel(User $user, PurchaseRequest $purchaseRequest): bool
     {
-        // Admin or requester can cancel
-        // Cannot cancel if already completed or cancelled
-        $status = $this->getStatusValue($purchaseRequest->status);
+        $status = $this->statusValue($purchaseRequest);
 
         if (in_array($status, [
-            PurchaseRequest::STATUS_COMPLETED,
-            PurchaseRequest::STATUS_CANCELLED,
-        ])) {
+            PurchaseRequestStatus::COMPLETED->value,
+            PurchaseRequestStatus::CANCELLED->value,
+        ], true)) {
             return false;
         }
 
@@ -189,16 +177,23 @@ class PurchaseRequestPolicy
     }
 
     /**
-     * Helper: Get status value (supports both Enum and string)
+     * Helper: return status as string value
+     * Accepts enum instance (PurchaseRequestStatus), or string, or null.
      */
-    private function getStatusValue(mixed $status): string
+    private function statusValue(PurchaseRequest|object $purchaseRequest): ?string
     {
-        // If it's an Enum instance, get the value
-        if (is_object($status) && method_exists($status, 'value')) {
+        // Prefer model helper if exists
+        if (method_exists($purchaseRequest, 'getStatusValue')) {
+            return $purchaseRequest->getStatusValue();
+        }
+
+        // Fallback: try to access attribute and normalize
+        $status = $purchaseRequest->status ?? null;
+
+        if ($status instanceof PurchaseRequestStatus) {
             return $status->value;
         }
 
-        // If it's already a string, return as is
-        return (string) $status->value;
+        return $status === null ? null : (string) $status;
     }
 }
