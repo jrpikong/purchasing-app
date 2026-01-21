@@ -10,10 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes,HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -31,6 +32,7 @@ class User extends Authenticatable
         'phone',
         'is_active',
         'email_verified_at',
+        'membership_expired_at'
     ];
 
     /**
@@ -54,7 +56,14 @@ class User extends Authenticatable
         'password' => 'hashed',
         'position' => PositionEnum::class,
         'role' => RoleEnum::class,
+        'membership_expired_at' => 'datetime',
     ];
+
+    public function isExpired(): bool
+    {
+        return $this->membership_expired_at !== null
+            && now()->greaterThan($this->membership_expired_at);
+    }
 
     /**
      * Role constants

@@ -386,7 +386,6 @@ class PurchaseRequestsTable
                             ->body("PR {$record->pr_number} has been cancelled")
                             ->send();
                     }),
-
             ])
             ->headerActions([
                 ExportAction::make()

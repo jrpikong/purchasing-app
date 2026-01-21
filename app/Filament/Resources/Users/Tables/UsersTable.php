@@ -25,7 +25,7 @@ class UsersTable
                     ->label('Email address')
                     ->searchable(),
 
-                TextColumn::make('role')
+                TextColumn::make('roles.name')->label('Role Name')
                     ->searchable(),
                 TextColumn::make('department.name')
                     ->numeric()

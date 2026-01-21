@@ -22,7 +22,7 @@ class UserInfolist
                         TextEntry::make('email_verified_at')
                             ->dateTime()
                             ->placeholder('-'),
-                        TextEntry::make('role'),
+                        TextEntry::make('roles.name')->label('Role Name'),
                         TextEntry::make('department_id')
                             ->numeric()
                             ->placeholder('-'),

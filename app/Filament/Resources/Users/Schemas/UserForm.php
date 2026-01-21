@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use App\Enums\PositionEnum;
 use App\Models\User;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -31,12 +32,21 @@ class UserForm
                             ->maxLength(255)
                             ->email()
                             ->unique(User::class, 'email'),
+                        DatePicker::make('membership_expired_at')
+                            ->label('Membership Expired')
+                            ->seconds(false)
+                            ->nullable()
+                            ->helperText('Jika terisi, user tidak bisa login setelah tanggal ini'),
                         TextInput::make('password')
                             ->password()
-                            ->required(),
-                        TextInput::make('role')
-                            ->required()
-                            ->default('admin'),
+                            ->required(fn ($context) => $context === 'create')
+                            ->dehydrateStateUsing(fn ($state) => filled($state) ? bcrypt($state) : null)
+                            ->dehydrated(fn ($state) => filled($state)),
+                        Select::make('roles')
+                            ->relationship('roles', 'name')
+                            ->multiple()
+                            ->preload()
+                            ->searchable(),
                         Select::make('department_id')
                             ->relationship('department', 'name')
                             ->required(),
