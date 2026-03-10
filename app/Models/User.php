@@ -156,11 +156,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user is approver
+     * Check if user is approver (any approval-capable role)
      */
     public function isApprover()
     {
-        return in_array($this->role, [self::ROLE_APPROVER, self::ROLE_SUPER_ADMIN]);
+        return in_array($this->role instanceof \App\Enums\RoleEnum ? $this->role->value : $this->role, [
+            self::ROLE_APPROVER,
+            self::ROLE_SECTION_HEAD,
+            self::ROLE_DIVISION_HEAD,
+            self::ROLE_FINANCE_ADMIN,
+            self::ROLE_TREASURER,
+            self::ROLE_SUPER_ADMIN,
+        ]);
     }
 
     /**
@@ -180,10 +187,17 @@ class User extends Authenticatable
     }
 
     /**
-     * Scope for approvers
+     * Scope for approvers (all roles that can approve)
      */
     public function scopeApprovers($query)
     {
-        return $query->whereIn('role', [self::ROLE_APPROVER, self::ROLE_SUPER_ADMIN]);
+        return $query->whereIn('role', [
+            self::ROLE_APPROVER,
+            self::ROLE_SECTION_HEAD,
+            self::ROLE_DIVISION_HEAD,
+            self::ROLE_FINANCE_ADMIN,
+            self::ROLE_TREASURER,
+            self::ROLE_SUPER_ADMIN,
+        ]);
     }
 }

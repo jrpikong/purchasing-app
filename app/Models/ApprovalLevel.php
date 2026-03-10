@@ -54,7 +54,7 @@ class ApprovalLevel extends Model
     /**
      * Get the actual approver based on role type
      */
-    public function getApprover($purchaseRequest = null)
+    public function getApprover($purchaseRequest = null): ?User
     {
         switch ($this->role_type) {
             case self::ROLE_TYPE_SPECIFIC_USER:
@@ -66,8 +66,30 @@ class ApprovalLevel extends Model
                 }
                 break;
 
+            case self::ROLE_TYPE_SECTION_HEAD:
+                if ($purchaseRequest && $purchaseRequest->department) {
+                    return $purchaseRequest->department->sectionHead;
+                }
+                return User::where('role', User::ROLE_SECTION_HEAD)
+                    ->where('is_active', true)
+                    ->first();
+
+            case self::ROLE_TYPE_DIVISION_HEAD:
+                return User::where('role', User::ROLE_DIVISION_HEAD)
+                    ->where('is_active', true)
+                    ->first();
+
+            case self::ROLE_TYPE_FINANCE_ADMIN:
+                return User::where('role', User::ROLE_FINANCE_ADMIN)
+                    ->where('is_active', true)
+                    ->first();
+
+            case self::ROLE_TYPE_TREASURER:
+                return User::where('role', User::ROLE_TREASURER)
+                    ->where('is_active', true)
+                    ->first();
+
             case self::ROLE_TYPE_ROLE_BASED:
-                // Get first active user with the specified role
                 return User::where('role', $this->role_name)
                     ->where('is_active', true)
                     ->first();
@@ -79,21 +101,18 @@ class ApprovalLevel extends Model
     /**
      * Get display name for approver
      */
-    public function getApproverDisplayNameAttribute()
+    public function getApproverDisplayNameAttribute(): string
     {
-        switch ($this->role_type) {
-            case self::ROLE_TYPE_SPECIFIC_USER:
-                return $this->approver ? $this->approver->name : 'Not Set';
-
-            case self::ROLE_TYPE_DEPARTMENT_HEAD:
-                return 'Department Head';
-
-            case self::ROLE_TYPE_ROLE_BASED:
-                return ucfirst(str_replace('_', ' ', $this->role_name));
-
-            default:
-                return 'Unknown';
-        }
+        return match ($this->role_type) {
+            self::ROLE_TYPE_SPECIFIC_USER  => $this->approver?->name ?? 'Not Set',
+            self::ROLE_TYPE_DEPARTMENT_HEAD => 'Department Head',
+            self::ROLE_TYPE_SECTION_HEAD    => 'Section Head',
+            self::ROLE_TYPE_DIVISION_HEAD   => 'Division Head',
+            self::ROLE_TYPE_FINANCE_ADMIN   => 'Finance Admin',
+            self::ROLE_TYPE_TREASURER       => 'Treasurer',
+            self::ROLE_TYPE_ROLE_BASED      => ucfirst(str_replace('_', ' ', $this->role_name ?? '')),
+            default                         => 'Unknown',
+        };
     }
 
     /**

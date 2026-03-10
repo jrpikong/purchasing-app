@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\PurchaseRequestApprovalController;
 use Illuminate\Support\Facades\Route;
-
+Route::get('/', fn() => redirect('/admin/login'));
 Route::middleware(['web'])->group(function () {
     // Approval link from email (signed route)
     Route::get('/pr/approve/{id}', [PurchaseRequestApprovalController::class, 'approvalLink'])

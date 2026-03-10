@@ -16,16 +16,14 @@ class ApprovalHistory extends Model
      */
     protected $fillable = [
         'purchase_request_id',
-        'approver_id',
-        'approval_level',
-        'action',
-        'comments',
-        'approved_at',
-        'token',
-        'token_expired_at',
-        'ip_address',
-        'user_agent',
         'actor_id',
+        'action',
+        'comment',
+        'from_status',
+        'to_status',
+        'next_approver_id',
+        'acted_at',
+        'meta',
     ];
 
     /**
@@ -34,9 +32,8 @@ class ApprovalHistory extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'approved_at' => 'datetime',
-        'token_expired_at' => 'datetime',
-        'approval_level' => 'integer',
+        'acted_at' => 'datetime',
+        'meta'     => 'array',
     ];
 
     /**
@@ -71,33 +68,30 @@ class ApprovalHistory extends Model
     /**
      * Mark as approved
      */
-    public function markAsApproved($comments = null, $ipAddress = null, $userAgent = null)
+    public function markAsApproved(?string $comment = null): void
     {
-        $this->update([
-            'action' => self::ACTION_APPROVED,
-            'comments' => $comments,
-            'approved_at' => now(),
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent,
-        ]);
-
-        // Update PR status
-        $pr = $this->purchaseRequest;
-
-        // Check if there's a next approver
+        $pr           = $this->purchaseRequest;
         $nextApprover = $pr->getNextApprover();
 
+        $this->update([
+            'action'         => self::ACTION_APPROVED,
+            'comment'        => $comment,
+            'to_status'      => $nextApprover
+                ? PurchaseRequest::STATUS_WAITING_APPROVAL
+                : PurchaseRequest::STATUS_APPROVED,
+            'next_approver_id' => $nextApprover?->id,
+            'acted_at'       => now(),
+        ]);
+
         if ($nextApprover) {
-            // Move to next approver
             $pr->update([
                 'current_approver_id' => $nextApprover->id,
-                'status' => PurchaseRequest::STATUS_WAITING_APPROVAL,
+                'status'              => PurchaseRequest::STATUS_WAITING_APPROVAL,
             ]);
         } else {
-            // All approvals done
             $pr->update([
-                'status' => PurchaseRequest::STATUS_APPROVED,
-                'approved_at' => now(),
+                'status'              => PurchaseRequest::STATUS_APPROVED,
+                'approved_at'         => now(),
                 'current_approver_id' => null,
             ]);
         }
@@ -106,21 +100,19 @@ class ApprovalHistory extends Model
     /**
      * Mark as rejected
      */
-    public function markAsRejected($comments = null, $ipAddress = null, $userAgent = null)
+    public function markAsRejected(?string $comment = null): void
     {
         $this->update([
-            'action' => self::ACTION_REJECTED,
-            'comments' => $comments,
-            'approved_at' => now(),
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent,
+            'action'    => self::ACTION_REJECTED,
+            'comment'   => $comment,
+            'to_status' => PurchaseRequest::STATUS_REJECTED,
+            'acted_at'  => now(),
         ]);
 
-        // Update PR status
         $this->purchaseRequest->update([
-            'status' => PurchaseRequest::STATUS_REJECTED,
-            'rejected_at' => now(),
-            'rejection_reason' => $comments,
+            'status'              => PurchaseRequest::STATUS_REJECTED,
+            'rejected_at'         => now(),
+            'rejection_reason'    => $comment,
             'current_approver_id' => null,
         ]);
     }
@@ -128,19 +120,17 @@ class ApprovalHistory extends Model
     /**
      * Mark as need revision
      */
-    public function markAsRevised($comments = null, $ipAddress = null, $userAgent = null)
+    public function markAsRevised(?string $comment = null): void
     {
         $this->update([
-            'action' => self::ACTION_REVISED,
-            'comments' => $comments,
-            'approved_at' => now(),
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent,
+            'action'    => self::ACTION_REVISED,
+            'comment'   => $comment,
+            'to_status' => PurchaseRequest::STATUS_NEED_REVISION,
+            'acted_at'  => now(),
         ]);
 
-        // Update PR status
         $this->purchaseRequest->update([
-            'status' => PurchaseRequest::STATUS_NEED_REVISION,
+            'status'              => PurchaseRequest::STATUS_NEED_REVISION,
             'current_approver_id' => null,
         ]);
     }

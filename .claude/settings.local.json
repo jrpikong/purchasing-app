@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/Projects/Ardika/apps/purchasing-app/database/migrations -type f -name \"*create_purchase_requests*\" -o -name \"*create_approval*\" 2>/dev/null | head -20)",
+      "Bash(cd \"D:\\\\Projects\\\\Ardika\\\\apps\\\\purchasing-app\" && php -l app/Models/PurchaseRequest.php && php -l app/Models/ApprovalHistory.php && php -l app/Models/ApprovalLevel.php && php -l app/Models/User.php && php -l database/seeders/UserSeeder.php && php -l database/seeders/ApprovalFlowSeeder.php && php -l database/seeders/ApprovalLevelSeeder.php && php -l app/Filament/Pages/UserGuide.php 2>&1)",
+      "Bash(cd \"D:\\\\Projects\\\\Ardika\\\\apps\\\\purchasing-app\" && php.bat -l app/Filament/Resources/PurchaseRequests/Schemas/PurchaseRequestForm.php && php.bat -l app/Filament/Resources/PurchaseRequests/Pages/CreatePurchaseRequest.php 2>&1)"
+    ]
+  }
+}

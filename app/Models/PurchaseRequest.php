@@ -409,6 +409,60 @@ class PurchaseRequest extends Model
     }
 
     /**
+     * Find the next approver in the approval chain after the current one.
+     * Returns null if the current approver is the last level (fully approved).
+     */
+    public function getNextApprover(): ?User
+    {
+        $flow = ApprovalFlow::query()
+            ->active()
+            ->forDepartment($this->department_id)
+            ->forAmount($this->total_amount)
+            ->first();
+
+        if (! $flow) {
+            return null;
+        }
+
+        $levels      = $flow->levels()->orderBy('level_order')->get();
+        $foundCurrent = false;
+
+        foreach ($levels as $level) {
+            if ($foundCurrent) {
+                return $level->getApprover($this);
+            }
+
+            $approver = $level->getApprover($this);
+            if ($approver && $approver->id === $this->current_approver_id) {
+                $foundCurrent = true;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the first approver in the approval chain for this PR.
+     * Used when sending for approval the first time.
+     */
+    public function getFirstApprover(): ?User
+    {
+        $flow = ApprovalFlow::query()
+            ->active()
+            ->forDepartment($this->department_id)
+            ->forAmount($this->total_amount)
+            ->first();
+
+        if (! $flow) {
+            return null;
+        }
+
+        $firstLevel = $flow->levels()->orderBy('level_order')->first();
+
+        return $firstLevel?->getApprover($this);
+    }
+
+    /**
      * Scope: visible to user (privacy filter)
      * User can only see PR if they are involved
      */
