@@ -118,6 +118,7 @@ class PurchaseRequestForm
                             ->label('Estimasi Total Anggaran')
                             ->numeric()
                             ->prefix('Rp')
+                            ->default(0)
                             ->placeholder('0')
                             ->minValue(0)
                             ->helperText('Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan.')

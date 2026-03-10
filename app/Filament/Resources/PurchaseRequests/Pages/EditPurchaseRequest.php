@@ -26,6 +26,13 @@ class EditPurchaseRequest extends EditRecord
         ];
     }
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $data['total_amount'] = $data['total_amount'] ?? 0;
+
+        return $data;
+    }
+
     /**
      * Authorize access - ensure user can edit this PR
      */

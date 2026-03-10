@@ -31,6 +31,7 @@ class CreatePurchaseRequest extends CreateRecord
         $data['requester_id'] = auth()->id();
         $data['status']       = 'draft';
         $data['request_date'] = $data['request_date'] ?? now()->toDateString();
+        $data['total_amount'] = $data['total_amount'] ?? 0;
 
         // Set department from user's department if not provided
         if (empty($data['department_id'])) {
