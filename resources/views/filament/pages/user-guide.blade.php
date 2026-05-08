@@ -320,13 +320,14 @@
         <div class="ug-card-body">
             <div class="ug-toc-grid">
                 @foreach([
-                    ['1','Peran Pengguna (User Roles)'],
-                    ['2','Alur Proses (Flow Diagram)'],
-                    ['3','Panduan per Peran'],
-                    ['4','Status Purchase Request'],
-                    ['5','Alur Persetujuan Bertingkat'],
-                    ['6','Notifikasi & Email'],
-                    ['7','Tips & FAQ'],
+                    ['1','Akun Dummy & Credential'],
+                    ['2','Peran Pengguna (User Roles)'],
+                    ['3','Alur Proses (Flow Diagram)'],
+                    ['4','Panduan per Peran'],
+                    ['5','Status Purchase Request'],
+                    ['6','Alur Persetujuan Bertingkat'],
+                    ['7','Notifikasi & Email'],
+                    ['8','Tips & FAQ'],
                 ] as [$n,$label])
                 <a href="#section-{{ $n }}" class="ug-toc-link">
                     <span class="ug-toc-link-num">{{ $n }}</span>
@@ -337,30 +338,83 @@
         </div>
     </div>
 
-    {{-- ===================== 1. USER ROLES ===================== --}}
+    {{-- ===================== 1. DUMMY ACCOUNTS ===================== --}}
     <div id="section-1">
         <div class="ug-section-header">
             <div class="ug-section-num">1</div>
+            <h2 class="ug-section-title">Akun Dummy & Credential</h2>
+        </div>
+        <div class="ug-alert" style="display:flex;gap:.75rem;align-items:flex-start;border-radius:.625rem;border:1px solid #fde68a;background:#fffbeb;padding:1rem;margin-bottom:1rem">
+            <div style="flex-shrink:0;margin-top:.05rem">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#f59e0b"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
+            </div>
+            <div>
+                <div style="font-size:.83rem;font-weight:600;color:#92400e;margin-bottom:.2rem">Akun Demo untuk Testing</div>
+                <div style="font-size:.8rem;line-height:1.55;color:#b45309">Gunakan akun-akun di bawah ini untuk mencoba seluruh fitur sistem. Password default untuk semua akun adalah <strong>password</strong>.</div>
+            </div>
+        </div>
+        <div class="ug-card">
+            <table class="ug-table">
+                <thead>
+                    <tr>
+                        <th>Role</th>
+                        <th>Email / Username</th>
+                        <th>Password</th>
+                        <th>Fungsi</th>
+                        <th>Dept</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach([
+                        ['👑','Super Admin','jr.pikong@gmail.com','password','Akses penuh ke semua fitur & konfigurasi sistem','IT'],
+                        ['🛡️','Admin','admin@example.com','password','Kelola PR, assign PIC, kirim ke approver, mark completed','IT'],
+                        ['🛒','Requester (Purchaser)','john@example.com','password','Membuat & mengajukan Purchase Request baru','IT'],
+                        ['📋','Section Head','section.head@example.com','password','Approver Level 1 — s/d Rp 10 juta','IT'],
+                        ['🏢','Division Head','division.head@example.com','password','Approver Level 2 — Rp 10-50 juta','OPS'],
+                        ['💰','Finance Admin','manager@example.com','password','Approver Level 3 — Review keuangan PR > Rp 50 juta','FIN'],
+                        ['🏦','Treasurer','treasurer@example.com','password','Approver Level 4 (Final) — Otorisasi tertinggi','FIN'],
+                        ['📦','Procurement Staff','procurement@example.com','password','Admin khusus divisi procurement','FIN'],
+                    ] as [$icon,$role,$email,$pass,$func,$dept])
+                    <tr>
+                        <td><span style="font-size:1.1rem">{{ $icon }}</span> <strong style="font-size:.8rem">{{ $role }}</strong></td>
+                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $email }}</code></td>
+                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $pass }}</code></td>
+                        <td style="font-size:.75rem">{{ $func }}</td>
+                        <td><span class="sb sb-slate">{{ $dept }}</span></td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- ===================== 2. USER ROLES ===================== --}}
+    <div id="section-2">
+        <div class="ug-section-header">
+            <div class="ug-section-num">2</div>
             <h2 class="ug-section-title">Peran Pengguna (User Roles)</h2>
         </div>
         <p style="font-size:.83rem;color:#6b7280;margin:0 0 1.25rem;line-height:1.6">Sistem ini memiliki <strong>8 peran</strong> dengan hak akses yang berbeda. Setiap pengguna hanya dapat melakukan aksi yang sesuai dengan perannya.</p>
 
         <div class="ug-roles-grid">
             @foreach([
-                ['👤','Requester','role-slate','Membuat dan mengajukan Purchase Request.',['Buat PR baru','Edit PR (Draft/Revisi)','Submit PR untuk approval','Lihat status PR miliknya'],['Approve/Reject PR','Kelola master data']],
-                ['🛡️','Admin','role-blue','Mengelola sistem, assign PIC, dan mengarahkan PR ke approver.',['Lihat semua PR','Assign PIC ke PR','Kirim PR ke approver','Kelola User, Vendor, Departemen','Mark PR sebagai Completed'],['Approve sebagai pejabat keuangan']],
-                ['📋','Section Head','role-teal','Approver Level 1 — persetujuan pengajuan s/d Rp 10 juta.',['Approve / Reject / Revisi PR','Lihat PR yang di-assign','Aksi via email (token)'],['Kelola master data','Assign PIC']],
-                ['🏢','Division Head','role-cyan','Approver Level 2 — persetujuan Rp 10–50 juta.',['Approve / Reject / Revisi PR','Lihat PR yang di-assign'],['Kelola master data']],
-                ['💰','Finance Admin','role-green','Approver Level 3 — persetujuan aspek keuangan untuk PR > Rp 50 juta.',['Approve / Reject / Revisi PR','Review anggaran & vendor'],['Approve tanpa Division Head terlebih dahulu']],
-                ['🏦','Treasurer','role-emerald','Approver Level 4 (final) — otorisasi tertinggi untuk pengajuan besar.',['Approve / Reject PR (final)','Lihat semua PR yang menunggu'],['Edit data master']],
-                ['⚙️','Super Admin','role-red','Akses penuh ke seluruh sistem tanpa batasan.',['Semua aksi di sistem','Konfigurasi Approval Flow','Hapus/edit semua data'],[]],
-                ['🔍','Approver','role-amber','Approver umum — digunakan saat tidak ada role struktural yang cocok.',['Approve / Reject PR yang di-assign'],['Kelola master data']],
-            ] as [$emoji,$name,$skin,$desc,$can,$cant])
+                ['👤','Requester','role-slate','Membuat dan mengajukan Purchase Request.','john@example.com',['Buat PR baru','Edit PR (Draft/Revisi)','Submit PR untuk approval','Lihat status PR miliknya'],['Approve/Reject PR','Kelola master data']],
+                ['🛡️','Admin','role-blue','Mengelola sistem, assign PIC, dan mengarahkan PR ke approver.','admin@example.com',['Lihat semua PR','Assign PIC ke PR','Kirim PR ke approver','Kelola User, Vendor, Departemen','Mark PR sebagai Completed'],['Approve sebagai pejabat keuangan']],
+                ['📋','Section Head','role-teal','Approver Level 1 — persetujuan pengajuan s/d Rp 10 juta.','section.head@example.com',['Approve / Reject / Revisi PR','Lihat PR yang di-assign','Aksi via email (token)'],['Kelola master data','Assign PIC']],
+                ['🏢','Division Head','role-cyan','Approver Level 2 — persetujuan Rp 10–50 juta.','division.head@example.com',['Approve / Reject / Revisi PR','Lihat PR yang di-assign'],['Kelola master data']],
+                ['💰','Finance Admin','role-green','Approver Level 3 — persetujuan aspek keuangan untuk PR > Rp 50 juta.','manager@example.com',['Approve / Reject / Revisi PR','Review anggaran & vendor'],['Approve tanpa Division Head terlebih dahulu']],
+                ['🏦','Treasurer','role-emerald','Approver Level 4 (final) — otorisasi tertinggi untuk pengajuan besar.','treasurer@example.com',['Approve / Reject PR (final)','Lihat semua PR yang menunggu'],['Edit data master']],
+                ['⚙️','Super Admin','role-red','Akses penuh ke seluruh sistem tanpa batasan.','jr.pikong@gmail.com',['Semua aksi di sistem','Konfigurasi Approval Flow','Hapus/edit semua data'],[]],
+                ['📦','Procurement','role-amber','Admin khusus divisi procurement/pengadaan.','procurement@example.com',['Kelola PR procurement','Lihat semua PR'],['Edit master data']],
+            ] as [$emoji,$name,$skin,$desc,$email,$can,$cant])
             <div class="ug-role-card {{ $skin }}">
                 <div class="ug-role-card-top">
                     <div class="ug-role-card-title">
                         <span class="ug-role-card-emoji">{{ $emoji }}</span>
-                        <span class="ug-role-card-name">{{ $name }}</span>
+                        <div style="display:flex;flex-direction:column">
+                            <span class="ug-role-card-name">{{ $name }}</span>
+                            <span style="font-size:.65rem;color:#9ca3af;font-family:monospace">{{ $email }}</span>
+                        </div>
                     </div>
                     <span class="ug-role-badge" style="background:rgba(0,0,0,.07);color:#374151;font-size:.65rem">Role</span>
                 </div>
@@ -382,10 +436,10 @@
         </div>
     </div>
 
-    {{-- ===================== 2. FLOW DIAGRAM ===================== --}}
-    <div id="section-2">
+    {{-- ===================== 3. FLOW DIAGRAM ===================== --}}
+    <div id="section-3">
         <div class="ug-section-header">
-            <div class="ug-section-num">2</div>
+            <div class="ug-section-num">3</div>
             <h2 class="ug-section-title">Alur Proses (Flow Diagram)</h2>
         </div>
 
@@ -404,7 +458,7 @@
                         <div class="ug-flow-content" style="padding-bottom:1.25rem">
                             <div class="ug-flow-status-row">
                                 <span class="ug-status-pill sb-gray">DRAFT</span>
-                                <span class="ug-flow-actor">oleh Requester</span>
+                                <span class="ug-flow-actor">oleh Requester <span style="font-size:.65rem;color:#9ca3af">(john@example.com)</span></span>
                             </div>
                             <div class="ug-flow-title">Buat Purchase Request</div>
                             <div class="ug-flow-desc">Requester mengisi form PR: tujuan pembelian, jumlah, prioritas, vendor yang diinginkan, tanggal kebutuhan, dan lampiran dokumen pendukung (quotation, spesifikasi).</div>
@@ -433,7 +487,7 @@
                         <div class="ug-flow-content" style="padding-bottom:1.25rem">
                             <div class="ug-flow-status-row">
                                 <span class="ug-status-pill sb-amber">WAITING APPROVAL</span>
-                                <span class="ug-flow-actor">notifikasi → Admin</span>
+                                <span class="ug-flow-actor">notifikasi → Admin <span style="font-size:.65rem;color:#9ca3af">(admin@example.com)</span></span>
                             </div>
                             <div class="ug-flow-title">Menunggu Tindakan Admin</div>
                             <div class="ug-flow-desc">Sistem mengirim notifikasi ke semua Admin. Admin dapat assign PIC (opsional) lalu mengirimkan PR ke approver yang sesuai berdasarkan department &amp; jumlah.</div>
@@ -457,10 +511,17 @@
                         <div class="ug-flow-content" style="padding-bottom:1rem">
                             <div class="ug-flow-status-row">
                                 <span class="ug-status-pill sb-blue">REVIEW</span>
-                                <span class="ug-flow-actor">oleh Approver</span>
+                                <span class="ug-flow-actor">oleh Approver berdasarkan Tier:</span>
                             </div>
-                            <div class="ug-flow-title">Proses Persetujuan</div>
-                            <div class="ug-flow-desc">Approver menerima email berisi link approval (berlaku 7 hari). Approver membuka link, mereview detail PR, lalu memilih tindakan:</div>
+                            <div class="ug-flow-title">Proses Persetujuan Bertingkat</div>
+                            <div class="ug-flow-desc">
+                                <strong>Standard (s/d Rp 10jt):</strong> Section Head<br>
+                                <strong>Management (Rp 10-50jt):</strong> Section Head → Division Head<br>
+                                <strong>Executive (> Rp 50jt):</strong> Section Head → Division Head → Finance Admin → Treasurer
+                            </div>
+                            <div style="margin-top:.5rem;font-size:.78rem;color:#6b7280">
+                                Approver menerima email link approval (berlaku 7 hari). Buka link → review PR → pilih tindakan:
+                            </div>
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.625rem;margin-top:.75rem">
                                 <div style="border-radius:.6rem;border:1px solid #bbf7d0;background:#f0fdf4;padding:.75rem;text-align:center">
                                     <div style="font-size:1.2rem;margin-bottom:.2rem">✅</div>
@@ -535,10 +596,10 @@
         </div>
     </div>
 
-    {{-- ===================== 3. PANDUAN PER PERAN ===================== --}}
-    <div id="section-3">
+    {{-- ===================== 4. PANDUAN PER PERAN ===================== --}}
+    <div id="section-4">
         <div class="ug-section-header">
-            <div class="ug-section-num">3</div>
+            <div class="ug-section-num">4</div>
             <h2 class="ug-section-title">Panduan Per Peran</h2>
         </div>
         <div style="display:flex;flex-direction:column;gap:1.25rem">
@@ -631,10 +692,10 @@
         </div>
     </div>
 
-    {{-- ===================== 4. STATUS TABLE ===================== --}}
-    <div id="section-4">
+    {{-- ===================== 5. STATUS TABLE ===================== --}}
+    <div id="section-5">
         <div class="ug-section-header">
-            <div class="ug-section-num">4</div>
+            <div class="ug-section-num">5</div>
             <h2 class="ug-section-title">Status Purchase Request</h2>
         </div>
         <div class="ug-card">
@@ -670,10 +731,10 @@
         </div>
     </div>
 
-    {{-- ===================== 5. APPROVAL TIERS ===================== --}}
-    <div id="section-5">
+    {{-- ===================== 6. APPROVAL TIERS ===================== --}}
+    <div id="section-6">
         <div class="ug-section-header">
-            <div class="ug-section-num">5</div>
+            <div class="ug-section-num">6</div>
             <h2 class="ug-section-title">Alur Persetujuan Bertingkat</h2>
         </div>
         <p style="font-size:.83rem;color:#6b7280;margin:0 0 1.25rem;line-height:1.6">Sistem menentukan siapa yang harus menyetujui PR secara otomatis berdasarkan <strong>jumlah (amount)</strong> dan <strong>departemen</strong> pemohon.</p>
@@ -695,14 +756,14 @@
                             <span class="ug-tier-level-num">1</span>
                             <div>
                                 <div class="ug-tier-level-name">Section Head</div>
-                                <div class="ug-tier-level-sub">Final Approver</div>
+                                <div class="ug-tier-level-sub">section.head@example.com</div>
                             </div>
                             <span class="ug-tier-level-final">Final</span>
                         </div>
                     </div>
                     <div class="ug-tier-note">
                         <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#22c55e"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                        Proses paling cepat
+                        Proses paling cepat — 1 approver saja
                     </div>
                 </div>
             </div>
@@ -722,7 +783,7 @@
                             <span class="ug-tier-level-num">1</span>
                             <div>
                                 <div class="ug-tier-level-name">Section Head</div>
-                                <div class="ug-tier-level-sub">Approval Level 1</div>
+                                <div class="ug-tier-level-sub">section.head@example.com</div>
                             </div>
                         </div>
                         <div class="ug-tier-arrow-wrap">
@@ -732,7 +793,7 @@
                             <span class="ug-tier-level-num">2</span>
                             <div>
                                 <div class="ug-tier-level-name">Division Head</div>
-                                <div class="ug-tier-level-sub">Final Approver</div>
+                                <div class="ug-tier-level-sub">division.head@example.com</div>
                             </div>
                             <span class="ug-tier-level-final">Final</span>
                         </div>
@@ -751,12 +812,12 @@
                 </div>
                 <div class="ug-tier-body">
                     <div class="ug-tier-levels">
-                        @foreach([['1','Section Head','Approval L1'],['2','Division Head','Approval L2'],['3','Finance Admin','Approval L3'],['4','Treasurer','Final Approver']] as [$lv,$rn,$rs])
+                        @foreach([['1','Section Head','section.head@example.com','Approval L1'],['2','Division Head','division.head@example.com','Approval L2'],['3','Finance Admin','manager@example.com','Approval L3'],['4','Treasurer','treasurer@example.com','Final Approver']] as [$lv,$rn,$rem,$rs])
                         <div class="ug-tier-level">
                             <span class="ug-tier-level-num">{{ $lv }}</span>
                             <div>
                                 <div class="ug-tier-level-name">{{ $rn }}</div>
-                                <div class="ug-tier-level-sub">{{ $rs }}</div>
+                                <div class="ug-tier-level-sub">{{ $rem }}</div>
                             </div>
                             @if($lv=='4')<span class="ug-tier-level-final">Final</span>@endif
                         </div>
@@ -783,10 +844,10 @@
         </div>
     </div>
 
-    {{-- ===================== 6. NOTIFIKASI ===================== --}}
-    <div id="section-6">
+    {{-- ===================== 7. NOTIFIKASI ===================== --}}
+    <div id="section-7">
         <div class="ug-section-header">
-            <div class="ug-section-num">6</div>
+            <div class="ug-section-num">7</div>
             <h2 class="ug-section-title">Notifikasi &amp; Email</h2>
         </div>
         <div class="ug-card">
@@ -828,10 +889,10 @@
         </div>
     </div>
 
-    {{-- ===================== 7. FAQ ===================== --}}
-    <div id="section-7">
+    {{-- ===================== 8. FAQ ===================== --}}
+    <div id="section-8">
         <div class="ug-section-header">
-            <div class="ug-section-num">7</div>
+            <div class="ug-section-num">8</div>
             <h2 class="ug-section-title">Tips &amp; FAQ</h2>
         </div>
         <div class="ug-faq-list">

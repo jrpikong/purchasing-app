@@ -142,7 +142,7 @@ class PurchaseRequestApprovalService
     }
 
     /**
-     * Approve Purchase Request
+     * Approve Purchase Request (Multi-level approval support)
      */
     public function approve(
         PurchaseRequest $pr,
@@ -170,30 +170,119 @@ class PurchaseRequestApprovalService
                 throw new Exception("Request has already been processed. Current status: {$status}");
             }
 
-            $pr->update([
-                'status' => PurchaseRequestStatus::APPROVED,
-                'approved_at' => now(),
-                'final_approver_id' => $actor->id,
-                'current_approver_id' => null,
-                'approval_token' => null,
-                'approval_token_expires_at' => null,
-            ]);
+            // Update current level approval timestamp
+            $this->updateApproverTimestamp($pr, $actor);
 
-            // Log history
-            $this->logHistory(
-                pr: $pr,
-                actor: $actor,
-                action: 'approved',
-                fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
-                toStatus: PurchaseRequestStatus::APPROVED,
-                comment: $comment ?? 'Purchase request approved'
-            );
+            // Find next approver
+            $nextApprover = $pr->getNextApprover();
 
-            // Notify requester
-            $pr->requester->notify(new PurchaseRequestApprovedNotification($pr));
+            if ($nextApprover) {
+                // More approval levels needed - forward to next approver
+                $pr->update([
+                    'current_approver_id' => $nextApprover->id,
+                    // Generate new token for next approver
+                    'approval_token' => Str::random(64),
+                    'approval_token_expires_at' => now()->addDays(7),
+                ]);
+
+                // Log history
+                $this->logHistory(
+                    pr: $pr,
+                    actor: $actor,
+                    action: 'approved',
+                    fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                    toStatus: PurchaseRequestStatus::WAITING_APPROVAL, // Still waiting
+                    comment: $comment ?? 'Approved - forwarded to next level',
+                    nextApproverId: $nextApprover->id
+                );
+
+                // Notify next approver
+                $nextApprover->notify(new PurchaseRequestSentForApprovalNotification(
+                    $pr,
+                    $pr->approval_token,
+                    $pr->approval_token_expires_at
+                ));
+
+            } else {
+                // This is the final approver - mark as fully approved
+                $pr->update([
+                    'status' => PurchaseRequestStatus::APPROVED,
+                    'approved_at' => now(),
+                    'final_approver_id' => $actor->id,
+                    'current_approver_id' => null,
+                    'approval_token' => null,
+                    'approval_token_expires_at' => null,
+                ]);
+
+                // Log history
+                $this->logHistory(
+                    pr: $pr,
+                    actor: $actor,
+                    action: 'approved',
+                    fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                    toStatus: PurchaseRequestStatus::APPROVED,
+                    comment: $comment ?? 'Purchase request fully approved'
+                );
+
+                // Notify requester
+                $pr->requester->notify(new PurchaseRequestApprovedNotification($pr));
+            }
 
             return $pr->fresh();
         });
+    }
+
+    /**
+     * Update the appropriate approver timestamp based on actor's role
+     */
+    private function updateApproverTimestamp(PurchaseRequest $pr, User $actor): void
+    {
+        $now = now();
+
+        // Get role value - handle both enum and string
+        $actorRole = $actor->role;
+        if (is_object($actorRole) && method_exists($actorRole, 'value')) {
+            $actorRole = $actorRole->value;
+        } elseif (is_object($actorRole)) {
+            $actorRole = (string)$actorRole;
+        }
+
+        // Try Spatie roles as fallback
+        if (empty($actorRole) || $actorRole === null) {
+            $spatieRoles = $actor->getRoleNames();
+            $actorRole = $spatieRoles->first() ?? $actorRole;
+        }
+
+        // Update based on role type
+        switch ($actorRole) {
+            case 'section_head':
+                $pr->update([
+                    'section_head_id' => $actor->id,
+                    'section_head_approved_at' => $now,
+                ]);
+                break;
+
+            case 'division_head':
+                $pr->update([
+                    'division_head_id' => $actor->id,
+                    'division_head_approved_at' => $now,
+                ]);
+                break;
+
+            case 'finance_admin':
+                $pr->update([
+                    'finance_admin_id' => $actor->id,
+                    'finance_admin_approved_at' => $now,
+                ]);
+                break;
+
+            case 'treasurer':
+                $pr->update([
+                    'treasurer_id' => $actor->id,
+                    'treasurer_approved_at' => $now,
+                ]);
+                break;
+        }
     }
 
     /**
@@ -306,5 +395,62 @@ class PurchaseRequestApprovalService
         }
 
         return true;
+    }
+
+    /**
+     * Request revision for Purchase Request
+     */
+    public function requestRevision(
+        PurchaseRequest $pr,
+        User $actor,
+        string $revisionNotes
+    ): PurchaseRequest {
+        // Validate state
+        if (! $pr->canBeApproved()) {
+            $status = $pr->getStatusValue();
+            throw new Exception("Cannot request revision. Current status: {$status}");
+        }
+
+        // Validate approver
+        if ((int)$pr->current_approver_id !== $actor->id) {
+            throw new Exception("You are not authorized to request revision for this request.");
+        }
+
+        return DB::transaction(function () use ($pr, $actor, $revisionNotes) {
+            // Lock the row for update
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+
+            // Double-check status after lock
+            if (! $pr->canBeApproved()) {
+                $status = $pr->getStatusValue();
+                throw new Exception("Request has already been processed. Current status: {$status}");
+            }
+
+            $previousStatus = $pr->getStatusValue();
+
+            $pr->update([
+                'status' => PurchaseRequestStatus::NEED_REVISION,
+                'current_approver_id' => null,
+                'approval_token' => null,
+                'approval_token_expires_at' => null,
+                'notes' => ($pr->notes ? $pr->notes . "\n\n" : '') .
+                    "Revision requested by {$actor->name}: " . $revisionNotes,
+            ]);
+
+            // Log history
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: 'revision_requested',
+                fromStatus: $previousStatus,
+                toStatus: PurchaseRequestStatus::NEED_REVISION,
+                comment: $revisionNotes
+            );
+
+            // Notify requester
+            $pr->requester->notify(new \App\Notifications\PurchaseRequestRevisionNotification($pr));
+
+            return $pr->fresh();
+        });
     }
 }

@@ -386,6 +386,85 @@ class PurchaseRequestsTable
                             ->body("PR {$record->pr_number} has been cancelled")
                             ->send();
                     }),
+
+                // Request Revision Action
+                Action::make('request_revision')
+                    ->label('Request Revision')
+                    ->icon('heroicon-o-pencil')
+                    ->color('warning')
+                    ->visible(fn (PurchaseRequest $record) =>
+                    auth()->user()->can('requestRevision', $record)
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Request Revision')
+                    ->modalDescription(fn (PurchaseRequest $record) =>
+                    "Request changes to PR {$record->pr_number}?"
+                    )
+                    ->schema([
+                        Textarea::make('revision_notes')
+                            ->label('Revision Notes')
+                            ->required()
+                            ->rows(3)
+                            ->helperText('Describe what needs to be revised'),
+                    ])
+                    ->action(function (PurchaseRequest $record, array $data) {
+                        $service = app(PurchaseRequestApprovalService::class);
+
+                        try {
+                            $service->requestRevision($record, auth()->user(), $data['revision_notes']);
+
+                            FilamentNotification::make()
+                                ->success()
+                                ->title('Revision Requested')
+                                ->body("PR {$record->pr_number} has been returned for revision")
+                                ->send();
+                        } catch (\Exception $e) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('Error')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
+                    }),
+
+                // Mark as Completed Action
+                Action::make('mark_completed')
+                    ->label('Mark as Completed')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->visible(fn (PurchaseRequest $record) =>
+                    auth()->user()->can('markCompleted', $record)
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Mark PR as Completed')
+                    ->modalDescription(fn (PurchaseRequest $record) =>
+                    "Confirm that PR {$record->pr_number} has been fully processed?"
+                    )
+                    ->action(function (PurchaseRequest $record) {
+                        $previousStatus = $record->status;
+
+                        $record->update([
+                            'status' => PurchaseRequest::STATUS_COMPLETED,
+                            'notes' => ($record->notes ? $record->notes . "\n\n" : '') .
+                                "Marked as completed by " . auth()->user()->name . " at " . now()->format('Y-m-d H:i'),
+                        ]);
+
+                        // Log history
+                        $record->approvalHistories()->create([
+                            'actor_id' => auth()->id(),
+                            'action' => 'marked_completed',
+                            'comment' => 'Purchase request marked as completed',
+                            'from_status' => $previousStatus,
+                            'to_status' => PurchaseRequest::STATUS_COMPLETED,
+                            'acted_at' => now(),
+                        ]);
+
+                        FilamentNotification::make()
+                            ->success()
+                            ->title('PR Completed')
+                            ->body("PR {$record->pr_number} has been marked as completed")
+                            ->send();
+                    }),
             ])
             ->headerActions([
                 ExportAction::make()

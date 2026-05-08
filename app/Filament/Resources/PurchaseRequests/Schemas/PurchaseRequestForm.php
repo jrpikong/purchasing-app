@@ -16,6 +16,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\ToggleButtons;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -98,7 +99,7 @@ class PurchaseRequestForm
                         ->maxLength(2000)
                         ->placeholder('Jelaskan secara rinci mengapa pembelian ini diperlukan, apa yang akan dibeli, dan bagaimana manfaatnya untuk operasional...')
                         ->helperText('Minimal 30 karakter. Semakin detail, semakin cepat proses persetujuan.')
-                        ->minLength(30)
+                        ->minLength(10)
                         ->columnSpanFull(),
 
                 ]),
@@ -115,6 +116,7 @@ class PurchaseRequestForm
                     Grid::make(2)->schema([
 
                         TextInput::make('total_amount')
+                            ->required()
                             ->label('Estimasi Total Anggaran')
                             ->numeric()
                             ->prefix('Rp')
@@ -129,9 +131,9 @@ class PurchaseRequestForm
                                 // trigger live update for approval flow hint
                             }),
 
-                        Placeholder::make('approval_tier_hint')
+                        TextEntry::make('approval_tier_hint')
                             ->label('Tier Approval')
-                            ->content(function (Get $get): string {
+                            ->default(function (Get $get): string {
                                 $amount = (float) ($get('total_amount') ?? 0);
                                 if ($amount <= 0) {
                                     return '—  Masukkan estimasi anggaran untuk melihat tier approval.';

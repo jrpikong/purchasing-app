@@ -57,6 +57,24 @@ class PurchaseRequestInfolist
                             ->money('IDR')
                             ->placeholder('Not specified'),
 
+                        TextEntry::make('approval_tier_hint')
+                            ->label('Tier Approval')
+                            ->default(function ($record): string {
+                                $amount = (float) ($record->total_amount ?? 0);
+                                if ($amount <= 0) {
+                                    return '—  Masukkan estimasi anggaran untuk melihat tier approval.';
+                                }
+                                if ($amount <= 10_000_000) {
+                                    return '✅  Standard (1 level) — Section Head';
+                                }
+                                if ($amount <= 50_000_000) {
+                                    return '📋  Management (2 level) — Section Head → Division Head';
+                                }
+                                return '🏛️  Executive (4 level) — Section → Division → Finance → Treasurer';
+                            })
+                            ->helperText('Tier ditentukan otomatis berdasarkan jumlah anggaran.')
+                            ->markdown(),
+
                         TextEntry::make('notes')
                             ->label('Notes')
                             ->placeholder('No notes')
