@@ -116,14 +116,13 @@ class PurchaseRequestForm
                     Grid::make(2)->schema([
 
                         TextInput::make('total_amount')
-                            ->required()
                             ->label('Estimasi Total Anggaran')
                             ->numeric()
                             ->prefix('Rp')
                             ->default(0)
                             ->placeholder('0')
                             ->minValue(0)
-                            ->helperText('Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan.')
+                            ->helperText('Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan. Kosongkan jika belum dapat estimasi.')
                             ->prefixIcon('heroicon-o-currency-dollar')
                             ->extraInputAttributes(['class' => 'text-right'])
                             ->live(onBlur: true)
@@ -136,7 +135,7 @@ class PurchaseRequestForm
                             ->default(function (Get $get): string {
                                 $amount = (float) ($get('total_amount') ?? 0);
                                 if ($amount <= 0) {
-                                    return '—  Masukkan estimasi anggaran untuk melihat tier approval.';
+                                    return '✅  Standard (1 level) — Section Head — Default untuk nilai 0 atau belum diisi';
                                 }
                                 if ($amount <= 10_000_000) {
                                     return '✅  Standard (1 level) — Section Head';

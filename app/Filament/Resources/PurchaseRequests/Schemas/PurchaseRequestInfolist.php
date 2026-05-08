@@ -62,7 +62,7 @@ class PurchaseRequestInfolist
                             ->default(function ($record): string {
                                 $amount = (float) ($record->total_amount ?? 0);
                                 if ($amount <= 0) {
-                                    return '—  Masukkan estimasi anggaran untuk melihat tier approval.';
+                                    return '✅  Standard (1 level) — Section Head — Default untuk nilai 0 atau belum diisi';
                                 }
                                 if ($amount <= 10_000_000) {
                                     return '✅  Standard (1 level) — Section Head';
