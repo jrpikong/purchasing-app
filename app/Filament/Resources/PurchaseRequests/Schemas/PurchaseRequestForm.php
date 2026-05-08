@@ -21,12 +21,13 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\RawJs;
 
 class PurchaseRequestForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $isEdit = fn ($livewire) => $livewire instanceof EditPurchaseRequest;
+        $isEdit = fn($livewire) => $livewire instanceof EditPurchaseRequest;
 
         return $schema->components([
 
@@ -79,9 +80,9 @@ class PurchaseRequestForm
                         Select::make('priority')
                             ->label('Prioritas')
                             ->options([
-                                'low'    => 'Low — Tidak mendesak',
+                                'low' => 'Low — Tidak mendesak',
                                 'medium' => 'Medium — Normal',
-                                'high'   => 'High — Segera',
+                                'high' => 'High — Segera',
                                 'urgent' => 'Urgent — Sangat Mendesak',
                             ])
                             ->default('medium')
@@ -117,7 +118,7 @@ class PurchaseRequestForm
 
                         TextInput::make('total_amount')
                             ->label('Estimasi Total Anggaran')
-                            ->numeric()
+                            ->mask(RawJs::make('$money($input)'))
                             ->prefix('Rp')
                             ->default(0)
                             ->placeholder('0')
@@ -125,15 +126,15 @@ class PurchaseRequestForm
                             ->helperText('Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan. Kosongkan jika belum dapat estimasi.')
                             ->prefixIcon('heroicon-o-currency-dollar')
                             ->extraInputAttributes(['class' => 'text-right'])
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(function ($state, $set) {
-                                // trigger live update for approval flow hint
-                            }),
+                            ->live(onBlur: true),
+
 
                         TextEntry::make('approval_tier_hint')
                             ->label('Tier Approval')
                             ->default(function (Get $get): string {
-                                $amount = (float) ($get('total_amount') ?? 0);
+                                $value = $get('total_amount') ?? '0';
+                                $amount = (float)preg_replace('/[^0-9]/', '', (string)$value);
+
                                 if ($amount <= 0) {
                                     return '✅  Standard (1 level) — Section Head — Default untuk nilai 0 atau belum diisi';
                                 }
@@ -177,7 +178,7 @@ class PurchaseRequestForm
                                 Vendor::where('is_active', true)
                                     ->orderBy('name')
                                     ->get()
-                                    ->mapWithKeys(fn ($v) => [
+                                    ->mapWithKeys(fn($v) => [
                                         $v->id => "{$v->name} ({$v->vendor_code})"
                                     ])
                             )
@@ -293,14 +294,14 @@ class PurchaseRequestForm
                         Select::make('status')
                             ->label('Status')
                             ->options([
-                                'draft'            => 'Draft',
+                                'draft' => 'Draft',
                                 'waiting_approval' => 'Waiting Approval',
-                                'in_review'        => 'In Review',
-                                'approved'         => 'Approved',
-                                'rejected'         => 'Rejected',
-                                'need_revision'    => 'Need Revision',
-                                'completed'        => 'Completed',
-                                'cancelled'        => 'Cancelled',
+                                'in_review' => 'In Review',
+                                'approved' => 'Approved',
+                                'rejected' => 'Rejected',
+                                'need_revision' => 'Need Revision',
+                                'completed' => 'Completed',
+                                'cancelled' => 'Cancelled',
                             ])
                             ->required()
                             ->disabled()
