@@ -3,9 +3,12 @@
 namespace App\Filament\Resources\PurchaseRequests\Schemas;
 
 use App\Enums\Priority;
+use App\Enums\PurchaseRequestStatus;
 use App\Filament\Resources\PurchaseRequests\Pages\CreatePurchaseRequest;
 use App\Filament\Resources\PurchaseRequests\Pages\EditPurchaseRequest;
+use App\Models\ApprovalFlow;
 use App\Models\Department;
+use App\Models\PurchaseRequest;
 use App\Models\User;
 use App\Models\Vendor;
 use Filament\Forms\Components\DatePicker;
@@ -28,6 +31,8 @@ class PurchaseRequestForm
     public static function configure(Schema $schema): Schema
     {
         $isEdit = fn($livewire) => $livewire instanceof EditPurchaseRequest;
+        $isAdmin = fn() => auth()->user()?->hasRole(['admin', 'super_admin']) ?? false;
+        $isLocked = fn(?PurchaseRequest $record) => $record !== null && ! $record->isEditable();
 
         return $schema->components([
 
@@ -55,7 +60,8 @@ class PurchaseRequestForm
                             ->preload()
                             ->placeholder('Pilih departemen...')
                             ->helperText('Departemen yang mengajukan permintaan pembelian.')
-                            ->prefixIcon('heroicon-o-building-office-2'),
+                            ->prefixIcon('heroicon-o-building-office-2')
+                            ->disabled(fn(?PurchaseRequest $record) => $isLocked($record)),
 
                         DatePicker::make('request_date')
                             ->label('Tanggal Pengajuan')
@@ -119,6 +125,8 @@ class PurchaseRequestForm
                         TextInput::make('total_amount')
                             ->label('Estimasi Total Anggaran')
                             ->mask(RawJs::make('$money($input)'))
+                            ->stripCharacters(',')
+                            ->numeric()
                             ->prefix('Rp')
                             ->default(0)
                             ->placeholder('0')
@@ -126,7 +134,11 @@ class PurchaseRequestForm
                             ->helperText('Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan. Kosongkan jika belum dapat estimasi.')
                             ->prefixIcon('heroicon-o-currency-dollar')
                             ->extraInputAttributes(['class' => 'text-right'])
-                            ->live(onBlur: true),
+                            ->live(onBlur: true)
+                            ->disabled(fn(?PurchaseRequest $record) => $isLocked($record))
+                            ->helperText(fn(?PurchaseRequest $record) => $isLocked($record)
+                                ? 'Tidak bisa diubah karena PR sudah masuk proses approval.'
+                                : 'Perkiraan total nilai pembelian dalam Rupiah. Menentukan level approval yang dibutuhkan. Kosongkan jika belum dapat estimasi.'),
 
 
                         TextEntry::make('approval_tier_hint')
@@ -135,18 +147,18 @@ class PurchaseRequestForm
                                 $value = $get('total_amount') ?? '0';
                                 $amount = (float)preg_replace('/[^0-9]/', '', (string)$value);
 
-                                if ($amount <= 0) {
-                                    return '✅  Standard (1 level) — Section Head — Default untuk nilai 0 atau belum diisi';
+                                $flow = ApprovalFlow::query()->active()->forAmount(max($amount, 0))->first();
+
+                                if (! $flow) {
+                                    return '⚠️  Tidak ada Approval Flow yang cocok untuk nominal ini — hubungi admin.';
                                 }
-                                if ($amount <= 10_000_000) {
-                                    return '✅  Standard (1 level) — Section Head';
-                                }
-                                if ($amount <= 50_000_000) {
-                                    return '📋  Management (2 level) — Section Head → Division Head';
-                                }
-                                return '🏛️  Executive (4 level) — Section → Division → Finance → Treasurer';
+
+                                $levels = $flow->levels()->orderBy('level_order')->pluck('description')->implode(' → ');
+                                $count  = $flow->levels()->count();
+
+                                return "{$flow->name} ({$count} level) — {$levels}";
                             })
-                            ->helperText('Tier ditentukan otomatis berdasarkan jumlah anggaran.'),
+                            ->helperText('Tier ditentukan otomatis berdasarkan jumlah anggaran, sesuai Approval Flow yang aktif.'),
 
                     ]),
 
@@ -293,16 +305,7 @@ class PurchaseRequestForm
 
                         Select::make('status')
                             ->label('Status')
-                            ->options([
-                                'draft' => 'Draft',
-                                'waiting_approval' => 'Waiting Approval',
-                                'in_review' => 'In Review',
-                                'approved' => 'Approved',
-                                'rejected' => 'Rejected',
-                                'need_revision' => 'Need Revision',
-                                'completed' => 'Completed',
-                                'cancelled' => 'Cancelled',
-                            ])
+                            ->options(PurchaseRequestStatus::options())
                             ->required()
                             ->disabled()
                             ->prefixIcon('heroicon-o-tag'),
@@ -319,7 +322,7 @@ class PurchaseRequestForm
                     ]),
 
                 ])
-                ->visible($isEdit),
+                ->visible(fn($livewire) => $isEdit($livewire) && $isAdmin()),
 
         ]);
     }

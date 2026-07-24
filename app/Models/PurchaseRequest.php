@@ -468,8 +468,9 @@ class PurchaseRequest extends Model
      */
     public function scopeVisibleToUser($query, User $user)
     {
-        // Admin can see all
-        if ($user->is_admin) {
+        // Admin can see all (is_admin flag OR admin/super_admin role — kept in sync to avoid drift)
+        $roleValue = $user->role instanceof \App\Enums\RoleEnum ? $user->role->value : $user->role;
+        if ($user->is_admin || in_array($roleValue, [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN], true)) {
             return $query;
         }
 

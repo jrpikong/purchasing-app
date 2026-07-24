@@ -339,54 +339,54 @@
     </div>
 
     {{-- ===================== 1. DUMMY ACCOUNTS ===================== --}}
-    <div id="section-1">
-        <div class="ug-section-header">
-            <div class="ug-section-num">1</div>
-            <h2 class="ug-section-title">Akun Dummy & Credential</h2>
-        </div>
-        <div class="ug-alert" style="display:flex;gap:.75rem;align-items:flex-start;border-radius:.625rem;border:1px solid #fde68a;background:#fffbeb;padding:1rem;margin-bottom:1rem">
-            <div style="flex-shrink:0;margin-top:.05rem">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#f59e0b"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
-            </div>
-            <div>
-                <div style="font-size:.83rem;font-weight:600;color:#92400e;margin-bottom:.2rem">Akun Demo untuk Testing</div>
-                <div style="font-size:.8rem;line-height:1.55;color:#b45309">Gunakan akun-akun di bawah ini untuk mencoba seluruh fitur sistem. Password default untuk semua akun adalah <strong>password</strong>.</div>
-            </div>
-        </div>
-        <div class="ug-card">
-            <table class="ug-table">
-                <thead>
-                    <tr>
-                        <th>Role</th>
-                        <th>Email / Username</th>
-                        <th>Password</th>
-                        <th>Fungsi</th>
-                        <th>Dept</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach([
-                        ['👑','Super Admin','jr.pikong@gmail.com','password','Akses penuh ke semua fitur & konfigurasi sistem','IT'],
-                        ['🛡️','Admin','admin@example.com','password','Kelola PR, assign PIC, kirim ke approver, mark completed','IT'],
-                        ['🛒','Requester (Purchaser)','john@example.com','password','Membuat & mengajukan Purchase Request baru','IT'],
-                        ['📋','Section Head','section.head@example.com','password','Approver Level 1 — s/d Rp 10 juta','IT'],
-                        ['🏢','Division Head','division.head@example.com','password','Approver Level 2 — Rp 10-50 juta','OPS'],
-                        ['💰','Finance Admin','manager@example.com','password','Approver Level 3 — Review keuangan PR > Rp 50 juta','FIN'],
-                        ['🏦','Treasurer','treasurer@example.com','password','Approver Level 4 (Final) — Otorisasi tertinggi','FIN'],
-                        ['📦','Procurement Staff','procurement@example.com','password','Admin khusus divisi procurement','FIN'],
-                    ] as [$icon,$role,$email,$pass,$func,$dept])
-                    <tr>
-                        <td><span style="font-size:1.1rem">{{ $icon }}</span> <strong style="font-size:.8rem">{{ $role }}</strong></td>
-                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $email }}</code></td>
-                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $pass }}</code></td>
-                        <td style="font-size:.75rem">{{ $func }}</td>
-                        <td><span class="sb sb-slate">{{ $dept }}</span></td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </div>
+    {{--    <div id="section-1">--}}
+{{--        <div class="ug-section-header">--}}
+{{--            <div class="ug-section-num">1</div>--}}
+{{--            <h2 class="ug-section-title">Akun Dummy & Credential</h2>--}}
+{{--        </div>--}}
+{{--        <div class="ug-alert" style="display:flex;gap:.75rem;align-items:flex-start;border-radius:.625rem;border:1px solid #fde68a;background:#fffbeb;padding:1rem;margin-bottom:1rem">--}}
+{{--            <div style="flex-shrink:0;margin-top:.05rem">--}}
+{{--                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#f59e0b"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>--}}
+{{--            </div>--}}
+{{--            <div>--}}
+{{--                <div style="font-size:.83rem;font-weight:600;color:#92400e;margin-bottom:.2rem">Akun Demo untuk Testing</div>--}}
+{{--                <div style="font-size:.8rem;line-height:1.55;color:#b45309">Gunakan akun-akun di bawah ini untuk mencoba seluruh fitur sistem. Password default untuk semua akun adalah <strong>password</strong>.</div>--}}
+{{--            </div>--}}
+{{--        </div>--}}
+{{--        <div class="ug-card">--}}
+{{--            <table class="ug-table">--}}
+{{--                <thead>--}}
+{{--                    <tr>--}}
+{{--                        <th>Role</th>--}}
+{{--                        <th>Email / Username</th>--}}
+{{--                        <th>Password</th>--}}
+{{--                        <th>Fungsi</th>--}}
+{{--                        <th>Dept</th>--}}
+{{--                    </tr>--}}
+{{--                </thead>--}}
+{{--                <tbody>--}}
+{{--                    @foreach([--}}
+{{--                        ['👑','Super Admin','jr.pikong@gmail.com','password','Akses penuh ke semua fitur & konfigurasi sistem','IT'],--}}
+{{--                        ['🛡️','Admin','admin@example.com','password','Kelola PR, assign PIC, kirim ke approver, mark completed','IT'],--}}
+{{--                        ['🛒','Requester (Purchaser)','john@example.com','password','Membuat & mengajukan Purchase Request baru','IT'],--}}
+{{--                        ['📋','Section Head','section.head@example.com','password','Approver Level 1 — s/d Rp 10 juta','IT'],--}}
+{{--                        ['🏢','Division Head','division.head@example.com','password','Approver Level 2 — Rp 10-50 juta','OPS'],--}}
+{{--                        ['💰','Finance Admin','manager@example.com','password','Approver Level 3 — Review keuangan PR > Rp 50 juta','FIN'],--}}
+{{--                        ['🏦','Treasurer','treasurer@example.com','password','Approver Level 4 (Final) — Otorisasi tertinggi','FIN'],--}}
+{{--                        ['📦','Procurement Staff','procurement@example.com','password','Admin khusus divisi procurement','FIN'],--}}
+{{--                    ] as [$icon,$role,$email,$pass,$func,$dept])--}}
+{{--                    <tr>--}}
+{{--                        <td><span style="font-size:1.1rem">{{ $icon }}</span> <strong style="font-size:.8rem">{{ $role }}</strong></td>--}}
+{{--                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $email }}</code></td>--}}
+{{--                        <td><code style="background:#f1f5f9;padding:.2rem .4rem;border-radius:.25rem;font-size:.75rem">{{ $pass }}</code></td>--}}
+{{--                        <td style="font-size:.75rem">{{ $func }}</td>--}}
+{{--                        <td><span class="sb sb-slate">{{ $dept }}</span></td>--}}
+{{--                    </tr>--}}
+{{--                    @endforeach--}}
+{{--                </tbody>--}}
+{{--            </table>--}}
+{{--        </div>--}}
+{{--    </div>--}}
 
     {{-- ===================== 2. USER ROLES ===================== --}}
     <div id="section-2">
@@ -510,10 +510,11 @@
                         </div>
                         <div class="ug-flow-content" style="padding-bottom:1rem">
                             <div class="ug-flow-status-row">
-                                <span class="ug-status-pill sb-blue">REVIEW</span>
+                                <span class="ug-status-pill sb-amber">WAITING APPROVAL</span>
                                 <span class="ug-flow-actor">oleh Approver berdasarkan Tier:</span>
                             </div>
                             <div class="ug-flow-title">Proses Persetujuan Bertingkat</div>
+                            <div style="margin-bottom:.4rem;font-size:.78rem;color:#6b7280">Status tetap <strong>Waiting Approval</strong> di setiap level — hanya <code style="background:#f1f5f9;padding:.1rem .35rem;border-radius:.25rem">current_approver</code>-nya yang berpindah ke level berikutnya setelah di-approve.</div>
                             <div class="ug-flow-desc">
                                 <strong>Standard (s/d Rp 10jt):</strong> Section Head<br>
                                 <strong>Management (Rp 10-50jt):</strong> Section Head → Division Head<br>
@@ -711,8 +712,7 @@
                 <tbody>
                     @foreach([
                         ['sb-gray','DRAFT','PR dibuat, belum diajukan','Edit, Submit, Delete','Requester'],
-                        ['sb-amber','WAITING APPROVAL','PR menunggu persetujuan approver','Approve, Reject, Revisi, Cancel','Approver / Admin'],
-                        ['sb-blue','IN REVIEW','PR sedang dalam tinjauan','Forward ke Approver','Admin'],
+                        ['sb-amber','WAITING APPROVAL','PR menunggu persetujuan approver (tetap status ini di setiap level, sampai level terakhir)','Approve, Reject, Revisi, Cancel','Approver / Admin'],
                         ['sb-green','APPROVED','PR disetujui semua level approver','Mark as Completed, Cancel','Admin'],
                         ['sb-red','REJECTED','PR ditolak oleh approver','Lihat alasan','Read-only'],
                         ['sb-orange','NEED REVISION','PR dikembalikan untuk diperbaiki','Edit, Resubmit','Requester'],
@@ -898,7 +898,7 @@
         <div class="ug-faq-list">
             @foreach([
                 ['❓','PR saya sudah disubmit tapi tidak ada yang approve?','Pastikan Admin sudah menjalankan aksi "Send for Approval". PR yang sudah disubmit belum otomatis dikirim ke approver — Admin harus memvalidasi dan mengirimkan secara manual.'],
-                ['❓','Link approval di email sudah expired?','Link approval berlaku 7 hari. Jika sudah expired, hubungi Admin untuk mengirim ulang link approval melalui aksi "Resend Approval Email" di panel Admin.'],
+                ['❓','Link approval di email sudah expired?','Link approval berlaku 7 hari. Jika sudah expired, Anda tidak perlu link baru — cukup login ke panel dan buka menu <strong>Purchase Request</strong>, cari PR dengan status Waiting Approval yang ditugaskan ke Anda, lalu klik tombol <strong>Approve</strong>/<strong>Reject</strong> langsung di sana (tidak memerlukan token email).'],
                 ['❓','Bagaimana jika tidak ada approval flow yang cocok?','Admin perlu membuat Approval Flow baru di menu Master Data → Approval Flow. Pastikan range amount dan department sesuai dengan PR yang akan diajukan.'],
                 ['❓','Apakah PR yang sudah Rejected bisa diajukan ulang?','Tidak. PR yang sudah berstatus Rejected bersifat final. Requester perlu membuat PR baru jika ingin mengajukan kembali.'],
                 ['❓','Berapa batas ukuran file lampiran?','Maksimum 10 MB per file. Format yang diterima adalah PDF. Pastikan dokumen sudah dalam format PDF sebelum diupload.'],

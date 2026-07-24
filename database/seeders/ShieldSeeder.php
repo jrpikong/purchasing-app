@@ -38,7 +38,7 @@ class ShieldSeeder extends Seeder
         ];
 
         // Resource models (sesuai Policy & naming Shield)
-        $resources = ['PurchaseRequest', 'User', 'Department', 'Vendor'];
+        $resources = ['PurchaseRequest', 'User', 'Department', 'Vendor', 'ApprovalFlow'];
 
         foreach ($resources as $resource) {
             foreach ($resourceActions as $action) {

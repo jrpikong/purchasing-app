@@ -46,8 +46,10 @@ class PurchaseRequestApprovalService
                 comment: 'Purchase request created'
             );
 
-            // Notify all admins (customize role check as needed)
-            $admins = User::where('is_admin', true)->get();
+            // Notify all admins (is_admin flag OR admin/super_admin role — kept in sync to avoid drift)
+            $admins = User::where('is_admin', true)
+                ->orWhereIn('role', [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+                ->get();
             foreach ($admins as $admin) {
                 $admin->notify(new PurchaseRequestCreatedNotification($pr));
             }
@@ -343,6 +345,86 @@ class PurchaseRequestApprovalService
     }
 
     /**
+     * Cancel Purchase Request
+     */
+    public function cancel(PurchaseRequest $pr, User $actor, string $reason): PurchaseRequest
+    {
+        if (! $pr->isCancellable()) {
+            $status = $pr->getStatusValue();
+            throw new Exception("Cannot cancel. Current status: {$status}");
+        }
+
+        return DB::transaction(function () use ($pr, $actor, $reason) {
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+
+            if (! $pr->isCancellable()) {
+                $status = $pr->getStatusValue();
+                throw new Exception("Request cannot be cancelled. Current status: {$status}");
+            }
+
+            $previousStatus = $pr->getStatusValue();
+
+            $pr->update([
+                'status' => PurchaseRequestStatus::CANCELLED,
+                'current_approver_id' => null,
+                'approval_token' => null,
+                'approval_token_expires_at' => null,
+                'notes' => ($pr->notes ? $pr->notes . "\n\n" : '') . "Cancelled: " . $reason,
+            ]);
+
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: 'cancelled',
+                fromStatus: $previousStatus,
+                toStatus: PurchaseRequestStatus::CANCELLED,
+                comment: $reason
+            );
+
+            return $pr->fresh();
+        });
+    }
+
+    /**
+     * Mark Purchase Request as completed
+     */
+    public function markCompleted(PurchaseRequest $pr, User $actor): PurchaseRequest
+    {
+        if ($pr->getStatusValue() !== PurchaseRequestStatus::APPROVED->value) {
+            $status = $pr->getStatusValue();
+            throw new Exception("Cannot mark as completed. Current status: {$status}");
+        }
+
+        return DB::transaction(function () use ($pr, $actor) {
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+
+            if ($pr->getStatusValue() !== PurchaseRequestStatus::APPROVED->value) {
+                $status = $pr->getStatusValue();
+                throw new Exception("Request cannot be marked as completed. Current status: {$status}");
+            }
+
+            $previousStatus = $pr->getStatusValue();
+
+            $pr->update([
+                'status' => PurchaseRequestStatus::COMPLETED,
+                'notes' => ($pr->notes ? $pr->notes . "\n\n" : '') .
+                    "Marked as completed by {$actor->name} at " . now()->format('Y-m-d H:i'),
+            ]);
+
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: 'marked_completed',
+                fromStatus: $previousStatus,
+                toStatus: PurchaseRequestStatus::COMPLETED,
+                comment: 'Purchase request marked as completed'
+            );
+
+            return $pr->fresh();
+        });
+    }
+
+    /**
      * Log approval history
      *
      * Accepts $fromStatus and $toStatus as either string|null or PurchaseRequestStatus|null.
@@ -386,7 +468,7 @@ class PurchaseRequestApprovalService
      */
     public function validateToken(PurchaseRequest $pr, string $token): bool
     {
-        if ($pr->approval_token !== $token) {
+        if (! $pr->approval_token || ! hash_equals($pr->approval_token, $token)) {
             return false;
         }
 

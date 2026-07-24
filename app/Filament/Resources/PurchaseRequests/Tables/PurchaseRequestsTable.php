@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\PurchaseRequests\Tables;
 
+use App\Enums\Priority;
+use App\Enums\PurchaseRequestStatus;
 use App\Filament\Exports\PurchaseRequestExporter;
 use App\Models\PurchaseRequest;
 use App\Models\User;
@@ -35,7 +37,11 @@ class PurchaseRequestsTable
     public static function configure(Tables\Table $table): Tables\Table
     {
         return $table
-
+            ->modifyQueryUsing(
+                fn (Builder $query) => $query
+                    ->with(['requester', 'department', 'currentApprover'])
+                    ->withCount('attachments')
+            )
             ->columns([
                 TextColumn::make('pr_number')
                     ->label('PR #')
@@ -109,31 +115,17 @@ class PurchaseRequestsTable
                 IconColumn::make('has_attachments')
                     ->label('Files')
                     ->boolean()
-                    ->getStateUsing(fn (PurchaseRequest $record) => $record->attachments()->exists())
+                    ->getStateUsing(fn (PurchaseRequest $record) => $record->attachments_count > 0)
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('status')
                     ->label('Status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'waiting_approval' => 'Waiting Approval',
-                        'in_review' => 'In Review',
-                        'approved' => 'Approved',
-                        'rejected' => 'Rejected',
-                        'need_revision' => 'Need Revision',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ]),
+                    ->options(PurchaseRequestStatus::options()),
 
                 SelectFilter::make('priority')
                     ->label('Priority')
-                    ->options([
-                        'low' => 'Low',
-                        'medium' => 'Medium',
-                        'high' => 'High',
-                        'urgent' => 'Urgent',
-                    ]),
+                    ->options(Priority::options()),
 
                 SelectFilter::make('department_id')
                     ->label('Department')
@@ -196,7 +188,11 @@ class PurchaseRequestsTable
                     ->schema([
                         Select::make('assigned_pic_id')
                             ->label('Select PIC')
-                            ->options(User::pluck('name', 'id'))
+                            ->options(
+                                User::where('is_active', true)
+                                    ->whereIn('role', ['admin', 'super_admin'])
+                                    ->pluck('name', 'id')
+                            )
                             ->required()
                             ->searchable(),
                     ])
@@ -230,12 +226,6 @@ class PurchaseRequestsTable
                     auth()->user()->can('sendForApproval', $record)
                     )
                     ->schema([
-                        Select::make('approver_id')
-                            ->label('Select Approver')
-                            ->options(User::pluck('name', 'id'))
-                            ->required()
-                            ->searchable(),
-
                         DateTimePicker::make('deadline')
                             ->label('Approval Deadline')
                             ->nullable()
@@ -243,7 +233,16 @@ class PurchaseRequestsTable
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
                         $service = app(PurchaseRequestApprovalService::class);
-                        $approver = User::find($data['approver_id']);
+                        $approver = $record->getFirstApprover();
+
+                        if (! $approver) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('Error')
+                                ->body('Tidak ditemukan approval flow yang sesuai untuk departemen/nominal PR ini. Hubungi admin untuk mengatur Approval Flow atau kepala departemen terkait.')
+                                ->send();
+                            return;
+                        }
 
                         try {
                             $service->sendForApproval(
@@ -362,29 +361,23 @@ class PurchaseRequestsTable
                             ->rows(3),
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
-                        $previousStatus = $record->status;
+                        $service = app(PurchaseRequestApprovalService::class);
 
-                        $record->update([
-                            'status' => PurchaseRequest::STATUS_CANCELLED,
-                            'notes' => ($record->notes ? $record->notes . "\n\n" : '') .
-                                "Cancelled: " . $data['cancel_reason'],
-                        ]);
+                        try {
+                            $service->cancel($record, auth()->user(), $data['cancel_reason']);
 
-                        // Log history
-                        $record->approvalHistories()->create([
-                            'actor_id' => auth()->id(),
-                            'action' => 'cancelled',
-                            'comment' => $data['cancel_reason'],
-                            'from_status' => $previousStatus,
-                            'to_status' => PurchaseRequest::STATUS_CANCELLED,
-                            'acted_at' => now(),
-                        ]);
-
-                        FilamentNotification::make()
-                            ->success()
-                            ->title('PR Cancelled')
-                            ->body("PR {$record->pr_number} has been cancelled")
-                            ->send();
+                            FilamentNotification::make()
+                                ->success()
+                                ->title('PR Cancelled')
+                                ->body("PR {$record->pr_number} has been cancelled")
+                                ->send();
+                        } catch (\Exception $e) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('Error')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
                     }),
 
                 // Request Revision Action
@@ -441,29 +434,23 @@ class PurchaseRequestsTable
                     "Confirm that PR {$record->pr_number} has been fully processed?"
                     )
                     ->action(function (PurchaseRequest $record) {
-                        $previousStatus = $record->status;
+                        $service = app(PurchaseRequestApprovalService::class);
 
-                        $record->update([
-                            'status' => PurchaseRequest::STATUS_COMPLETED,
-                            'notes' => ($record->notes ? $record->notes . "\n\n" : '') .
-                                "Marked as completed by " . auth()->user()->name . " at " . now()->format('Y-m-d H:i'),
-                        ]);
+                        try {
+                            $service->markCompleted($record, auth()->user());
 
-                        // Log history
-                        $record->approvalHistories()->create([
-                            'actor_id' => auth()->id(),
-                            'action' => 'marked_completed',
-                            'comment' => 'Purchase request marked as completed',
-                            'from_status' => $previousStatus,
-                            'to_status' => PurchaseRequest::STATUS_COMPLETED,
-                            'acted_at' => now(),
-                        ]);
-
-                        FilamentNotification::make()
-                            ->success()
-                            ->title('PR Completed')
-                            ->body("PR {$record->pr_number} has been marked as completed")
-                            ->send();
+                            FilamentNotification::make()
+                                ->success()
+                                ->title('PR Completed')
+                                ->body("PR {$record->pr_number} has been marked as completed")
+                                ->send();
+                        } catch (\Exception $e) {
+                            FilamentNotification::make()
+                                ->danger()
+                                ->title('Error')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
                     }),
             ])
             ->headerActions([

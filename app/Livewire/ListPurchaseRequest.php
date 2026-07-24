@@ -19,6 +19,8 @@ class ListPurchaseRequest extends TableWidget
         return $table
             ->query(fn (): Builder =>
             PurchaseRequest::query()
+                ->with(['requester', 'department', 'currentApprover'])
+                ->withCount('attachments')
                 ->latest()
                 ->limit(10)
             )
@@ -95,7 +97,7 @@ class ListPurchaseRequest extends TableWidget
                 IconColumn::make('has_attachments')
                     ->label('Files')
                     ->boolean()
-                    ->getStateUsing(fn (PurchaseRequest $record) => $record->attachments()->exists())
+                    ->getStateUsing(fn (PurchaseRequest $record) => $record->attachments_count > 0)
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
