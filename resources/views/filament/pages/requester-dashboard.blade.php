@@ -121,7 +121,9 @@
                                 @elseif($pr->status === 'completed')
                                     <span class="dash-badge dash-badge-emerald">Completed</span>
                                 @else
-                                    <span class="dash-badge dash-badge-gray">{{ \Illuminate\Support\Str::title(str_replace('_', ' ', $pr->status)) }}</span>
+                                    <span class="dash-badge dash-badge-{{ $pr->status->getColor() }}">
+                                        {{ $pr->status->getLabel() }}
+                                    </span>
                                 @endif
                             </td>
                             <td>{{ $pr->currentApprover?->name ?? '-' }}</td>
