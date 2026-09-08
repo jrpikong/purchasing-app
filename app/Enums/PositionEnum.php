@@ -7,6 +7,7 @@ use Filament\Support\Contracts\HasLabel;
 enum PositionEnum: string implements HasLabel
 {
     // Top Management
+    case PRESIDENT = 'President';
     case DIRECTOR = 'Director';
     case VICE_DIRECTOR = 'Vice Director';
     case GENERAL_MANAGER = 'General Manager';
