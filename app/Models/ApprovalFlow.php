@@ -98,10 +98,15 @@ class ApprovalFlow extends Model
      */
     public function scopeForDepartment($query, $departmentId)
     {
-        return $query->where(function($q) use ($departmentId) {
-            $q->where('department_id', $departmentId)
-                ->orWhereNull('department_id');
-        });
+        return $query
+            ->where(function ($q) use ($departmentId) {
+                $q->where('department_id', $departmentId)
+                    ->orWhereNull('department_id');
+            })
+            ->orderByRaw(
+                'CASE WHEN department_id = ? THEN 0 ELSE 1 END',
+                [$departmentId]
+            );
     }
 
     /**
