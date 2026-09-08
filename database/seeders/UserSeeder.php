@@ -15,129 +15,401 @@ class UserSeeder extends Seeder
         // Reset permission cache sebelum assign roles
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $itDept  = Department::where('code', 'IT')->first();
-        $finDept = Department::where('code', 'FIN')->first();
-        $opsDept = Department::where('code', 'OPS')->first();
+        /*
+        |--------------------------------------------------------------------------
+        | Departments
+        |--------------------------------------------------------------------------
+        */
 
-        /**
-         * Setiap entry punya:
-         *   - data user biasa (kolom users table)
-         *   - 'spatie_role' => nama Spatie role untuk filament-shield
-         */
+        $bomDept  = Department::where('code', 'BOM')->first();
+        $commDept = Department::where('code', 'COMM')->first();
+        $musDept  = Department::where('code', 'MUS')->first();
+        $opsDept  = Department::where('code', 'OPS')->first();
+        $comDept  = Department::where('code', 'COM')->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Users
+        |--------------------------------------------------------------------------
+        |
+        | User diambil berdasarkan struktur organisasi pada organizational chart.
+        |
+        | Vacant / Person 1 / Person 2 tidak dibuat sebagai user.
+        |
+        */
+
         $users = [
-            // ─── Super Admin ────────────────────────────────────────────
+
+            // =================================================================
+            // BOARD OF MANAGEMENT
+            // =================================================================
+
             [
-                'name'          => 'Super Admin',
-                'email'         => 'jr.pikong@gmail.com',
+                'name'          => 'Christine Kristiati',
+                'email'         => 'chair@heritagejkt.org',
                 'password'      => Hash::make('password'),
                 'role'          => 'super_admin',
                 'is_active'     => true,
-                'department_id' => $itDept?->id,
-                'position'      => 'Director',
+                'department_id' => $bomDept?->id,
+                'position'      => 'President',
                 'spatie_role'   => 'super_admin',
             ],
-            // ─── Admin ──────────────────────────────────────────────────
+
             [
-                'name'          => 'Admin User',
-                'email'         => 'admin@example.com',
+                'name'          => 'Claudia Prawirakoesoemah',
+                'email'         => 'secretary@heritagejkt.org',
                 'password'      => Hash::make('password'),
                 'role'          => 'admin',
                 'is_active'     => true,
-                'department_id' => $itDept?->id,
-                'position'      => 'Admin',
+                'department_id' => $bomDept?->id,
+                'position'      => 'Secretary',
                 'spatie_role'   => 'admin',
             ],
-            // ─── Requester ──────────────────────────────────────────────
+
             [
-                'name'          => 'John Doe',
-                'email'         => 'john@example.com',
-                'password'      => Hash::make('password'),
-                'role'          => 'requester',
-                'is_active'     => true,
-                'department_id' => $itDept?->id,
-                'position'      => 'Supervisor',
-                'spatie_role'   => 'requester',
-            ],
-            // ─── Section Head (Approver L1) ─────────────────────────────
-            [
-                'name'          => 'Budi Santoso',
-                'email'         => 'section.head@example.com',
-                'password'      => Hash::make('password'),
-                'role'          => 'section_head',
-                'is_active'     => true,
-                'department_id' => $itDept?->id,
-                'position'      => 'Section Head',
-                'spatie_role'   => 'section_head',
-            ],
-            // ─── Division Head (Approver L2) ────────────────────────────
-            [
-                'name'          => 'Siti Rahayu',
-                'email'         => 'division.head@example.com',
-                'password'      => Hash::make('password'),
-                'role'          => 'division_head',
-                'is_active'     => true,
-                'department_id' => $opsDept?->id,
-                'position'      => 'Manager',
-                'spatie_role'   => 'division_head',
-            ],
-            // ─── Finance Admin (Approver L3) ────────────────────────────
-            [
-                'name'          => 'Manager Finance',
-                'email'         => 'manager@example.com',
-                'password'      => Hash::make('password'),
-                'role'          => 'finance_admin',
-                'is_active'     => true,
-                'department_id' => $finDept?->id,
-                'position'      => 'Finance Manager',
-                'spatie_role'   => 'finance_admin',
-            ],
-            // ─── Treasurer (Approver L4 / Final) ────────────────────────
-            [
-                'name'          => 'Ahmad Treasurer',
-                'email'         => 'treasurer@example.com',
+                'name'          => 'Syandra Kwan',
+                'email'         => 'treasurer@heritagejkt.org',
                 'password'      => Hash::make('password'),
                 'role'          => 'treasurer',
                 'is_active'     => true,
-                'department_id' => $finDept?->id,
+                'department_id' => $bomDept?->id,
                 'position'      => 'Treasurer',
                 'spatie_role'   => 'treasurer',
             ],
-            // ─── Procurement Staff (Admin / PIC) ────────────────────────
+
+            // =================================================================
+            // COMMUNICATION DIVISION
+            // =================================================================
+
             [
-                'name'          => 'Procurement Staff',
-                'email'         => 'procurement@example.com',
+                'name'          => 'Luthfia Nurhikmah',
+                'email'         => 'publicrelations@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $commDept?->id,
+                'position'      => 'Co-Chair - Public Relations & Friends Support',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Mutia Anggita Putri',
+                'email'         => 'events@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $commDept?->id,
+                'position'      => 'Co-Chair - Events',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Ellen Viola Sugiharto',
+                'email'         => 'publishing@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $commDept?->id,
+                'position'      => 'Co-Chair - Publishing & Design',
+                'spatie_role'   => 'section_head',
+            ],
+
+            // =================================================================
+            // MUSEUM DIVISION
+            // =================================================================
+
+            [
+                'name'          => 'Rima Sjoekri',
+                'email'         => 'vcmuseums@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'division_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Head of Museum Division',
+                'spatie_role'   => 'division_head',
+            ],
+
+            [
+                'name'          => 'Borbála Csete',
+                'email'         => 'projects@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Museum Projects',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Nader Sobhan',
+                'email'         => 'museumtours@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Museum Tours',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Anne-Sophie Wislocki',
+                'email'         => 'museumtours2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Museum Tours',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Stephanie Tantri',
+                'email'         => 'museumtraining@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Museum Training',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Yuliani Tedja',
+                'email'         => 'museumtraining2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Museum Training',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Wine Amanda',
+                'email'         => 'languages@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Language Workshop',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Carmel Valencia Indrawan',
+                'email'         => 'languages2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - Language Workshop',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Mutiara Patmosantjojo',
+                'email'         => 'schools@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $musDept?->id,
+                'position'      => 'Co-Chair - School Programs',
+                'spatie_role'   => 'section_head',
+            ],
+
+            // =================================================================
+            // OPERATIONS DIVISION
+            // =================================================================
+
+            [
+                'name'          => 'Ardiansyah Nugraha',
+                'email'         => 'it@heritagejkt.org',
                 'password'      => Hash::make('password'),
                 'role'          => 'admin',
                 'is_active'     => true,
-                'department_id' => $finDept?->id,
-                'position'      => 'Admin',
+                'department_id' => $opsDept?->id,
+                'position'      => 'IT Support',
                 'spatie_role'   => 'admin',
+            ],
+
+            [
+                'name'          => 'Nida',
+                'email'         => 'library@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'admin',
+                'is_active'     => true,
+                'department_id' => $opsDept?->id,
+                'position'      => 'Library Admin',
+                'spatie_role'   => 'admin',
+            ],
+
+            [
+                'name'          => 'Yesnita',
+                'email'         => 'library2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'admin',
+                'is_active'     => true,
+                'department_id' => $opsDept?->id,
+                'position'      => 'Finance Admin',
+                'spatie_role'   => 'admin',
+            ],
+
+            // =================================================================
+            // COMMUNITY DIVISION
+            // =================================================================
+
+            [
+                'name'          => 'Jasmine Hafiza',
+                'email'         => 'explorers@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Explorers',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Nick Hughes',
+                'email'         => 'heritagetours@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Heritage Tours',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Lily J. van Bunnik',
+                'email'         => 'studygroups@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Study Groups',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'See Mun Leong-Suparno',
+                'email'         => 'rumahku@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Rumahku',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Clare Jeremy Roberts',
+                'email'         => 'rumahku2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Rumahku',
+                'spatie_role'   => 'section_head',
+            ],
+
+            // =================================================================
+            // LANGUAGE SPEAKING SECTIONS
+            // =================================================================
+
+            [
+                'name'          => 'Machiko Shimizu',
+                'email'         => 'japanesesection@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Japanese Speaking Section',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Mayumi Kudo',
+                'email'         => 'japanesesection2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Japanese Speaking Section',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Hee Eun (Elyse) Kim',
+                'email'         => 'koreansection@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Korean Speaking Section',
+                'spatie_role'   => 'section_head',
+            ],
+
+            [
+                'name'          => 'Hyun Suk Park',
+                'email'         => 'koreansection2@heritagejkt.org',
+                'password'      => Hash::make('password'),
+                'role'          => 'section_head',
+                'is_active'     => true,
+                'department_id' => $comDept?->id,
+                'position'      => 'Co-Chair - Korean Speaking Section',
+                'spatie_role'   => 'section_head',
             ],
         ];
 
+        /*
+        |--------------------------------------------------------------------------
+        | Create / Update Users
+        |--------------------------------------------------------------------------
+        */
+
         foreach ($users as $userData) {
-            // Pisahkan spatie_role dari data user
             $spatieRole = $userData['spatie_role'];
+
             unset($userData['spatie_role']);
 
-            // Buat atau temukan user
-            $user = User::firstOrCreate(
+            $user = User::updateOrCreate(
                 ['email' => $userData['email']],
                 $userData
             );
 
-            // Assign Spatie role (untuk filament-shield)
-            // syncRoles agar tidak duplikat jika dijalankan ulang
             $user->syncRoles([$spatieRole]);
         }
 
-        // Update department section head
-        if ($itDept) {
-            $itDept->update([
-                'section_head_id' => User::where('email', 'section.head@example.com')->value('id'),
+        /*
+        |--------------------------------------------------------------------------
+        | Update Division Heads
+        |--------------------------------------------------------------------------
+        */
+
+        if ($commDept) {
+            $commDept->update([
+                'section_head_id' => null,
             ]);
         }
 
-        $this->command->info('✅ Users berhasil dibuat & Spatie roles di-assign.');
+        if ($musDept) {
+            $musDept->update([
+                'section_head_id' => User::where(
+                    'email',
+                    'vcmuseums@heritagejkt.org'
+                )->value('id'),
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Information
+        |--------------------------------------------------------------------------
+        */
+
+        $this->command->info(
+            '✅ Client users berhasil dibuat & Spatie roles berhasil di-assign.'
+        );
     }
 }

@@ -458,7 +458,6 @@ class PurchaseRequest extends Model
         }
 
         $firstLevel = $flow->levels()->orderBy('level_order')->first();
-
         return $firstLevel?->getApprover($this);
     }
 
