@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\PurchaseRequestStatus;
+use App\Enums\RoleEnum;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use App\Models\ApprovalHistory;
@@ -241,21 +242,16 @@ class PurchaseRequestApprovalService
     {
         $now = now();
 
-        // Get role value - handle both enum and string
-        $actorRole = $actor->role;
-        if (is_object($actorRole) && method_exists($actorRole, 'value')) {
-            $actorRole = $actorRole->value;
-        } elseif (is_object($actorRole)) {
-            $actorRole = (string)$actorRole;
-        }
+        $actorRole = $actor->role instanceof RoleEnum
+            ? $actor->role->value
+            : $actor->role;
 
         // Try Spatie roles as fallback
-        if (empty($actorRole) || $actorRole === null) {
+        if (empty($actorRole)) {
             $spatieRoles = $actor->getRoleNames();
-            $actorRole = $spatieRoles->first() ?? $actorRole;
+            $actorRole = $spatieRoles->first();
         }
 
-        // Update based on role type
         switch ($actorRole) {
             case 'section_head':
                 $pr->update([
