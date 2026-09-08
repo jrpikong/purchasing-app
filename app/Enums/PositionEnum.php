@@ -27,6 +27,7 @@ enum PositionEnum: string implements HasLabel
     case JUNIOR_STAFF = 'Junior Staff';
     case INTERN = 'Intern';
 
+    case LIBRARY_ADMIN = 'Library Admin';
     // Specialized Positions
     case IT_MANAGER = 'IT Manager';
     case FINANCE_MANAGER = 'Finance Manager';
