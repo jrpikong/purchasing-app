@@ -125,7 +125,7 @@ class UserSeeder extends Seeder
                 'role'          => 'division_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Head of Museum Division',
+                'position'      => 'Section Head',
                 'spatie_role'   => 'division_head',
             ],
 
