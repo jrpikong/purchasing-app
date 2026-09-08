@@ -88,7 +88,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $commDept?->id,
-                'position'      => 'Co-Chair - Public Relations & Friends Support',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -99,7 +99,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $commDept?->id,
-                'position'      => 'Co-Chair - Events',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -110,7 +110,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $commDept?->id,
-                'position'      => 'Co-Chair - Publishing & Design',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -136,7 +136,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Museum Projects',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -147,7 +147,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Museum Tours',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -158,7 +158,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Museum Tours',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -169,7 +169,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Museum Training',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -180,7 +180,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Museum Training',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -191,7 +191,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Language Workshop',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -202,7 +202,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - Language Workshop',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -213,7 +213,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $musDept?->id,
-                'position'      => 'Co-Chair - School Programs',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -265,7 +265,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Explorers',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -276,7 +276,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Heritage Tours',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -287,7 +287,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Study Groups',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -298,7 +298,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Rumahku',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -309,7 +309,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Rumahku',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -324,7 +324,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Japanese Speaking Section',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -335,7 +335,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Japanese Speaking Section',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -346,7 +346,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Korean Speaking Section',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
 
@@ -357,7 +357,7 @@ class UserSeeder extends Seeder
                 'role'          => 'section_head',
                 'is_active'     => true,
                 'department_id' => $comDept?->id,
-                'position'      => 'Co-Chair - Korean Speaking Section',
+                'position'      => 'Co-Chair',
                 'spatie_role'   => 'section_head',
             ],
         ];

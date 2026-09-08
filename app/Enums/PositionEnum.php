@@ -19,6 +19,8 @@ enum PositionEnum: string implements HasLabel
     case SECTION_HEAD = 'Section Head';
     case TEAM_LEADER = 'Team Leader';
 
+    case CO_CHAIR = 'Co-Chair';
+
     // Staff Level
     case SENIOR_STAFF = 'Senior Staff';
     case STAFF = 'Staff';
