@@ -67,9 +67,10 @@ class ApprovalLevel extends Model
                 break;
 
             case self::ROLE_TYPE_SECTION_HEAD:
-                if ($purchaseRequest && $purchaseRequest->department) {
+                if ($purchaseRequest?->department?->sectionHead) {
                     return $purchaseRequest->department->sectionHead;
                 }
+
                 return User::where('role', User::ROLE_SECTION_HEAD)
                     ->where('is_active', true)
                     ->first();

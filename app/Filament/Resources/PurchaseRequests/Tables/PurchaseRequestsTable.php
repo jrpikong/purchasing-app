@@ -234,10 +234,6 @@ class PurchaseRequestsTable
                     ->action(function (PurchaseRequest $record, array $data) {
                         $service = app(PurchaseRequestApprovalService::class);
                         $approver = $record->getFirstApprover();
-                        dd([
-                            'department_id' => $approver,
-                            'flow' => $record,
-                        ]);
                         if (! $approver) {
                             FilamentNotification::make()
                                 ->danger()
