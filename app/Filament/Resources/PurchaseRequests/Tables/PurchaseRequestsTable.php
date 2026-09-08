@@ -235,9 +235,8 @@ class PurchaseRequestsTable
                         $service = app(PurchaseRequestApprovalService::class);
                         $approver = $record->getFirstApprover();
                         dd([
-                            'purchase_request_id' => $this->id,
-                            'department_id' => $this->department_id,
-                            'flow' => $record?->toArray(),
+                            'department_id' => $approver,
+                            'flow' => $record,
                         ]);
                         if (! $approver) {
                             FilamentNotification::make()
