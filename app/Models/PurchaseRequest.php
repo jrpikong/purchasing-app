@@ -450,7 +450,7 @@ class PurchaseRequest extends Model
         $flow = ApprovalFlow::query()
             ->active()
             ->forDepartment($this->department_id)
-            ->forAmount($this->total_amount)
+//            ->forAmount($this->total_amount)
             ->first();
 
         if (! $flow) {
