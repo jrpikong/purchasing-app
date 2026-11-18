@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\PurchaseRequests\Pages;
 
 use App\Filament\Resources\PurchaseRequests\PurchaseRequestResource;
-use App\Models\PurchaseRequest;
+use App\Services\PurchaseRequestApprovalService;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -39,6 +39,15 @@ class CreatePurchaseRequest extends CreateRecord
         }
 
         return $data;
+    }
+
+    /**
+     * Create through the service so the "created" history is logged and
+     * admins receive PurchaseRequestCreatedNotification (email + database).
+     */
+    protected function handleRecordCreation(array $data): Model
+    {
+        return app(PurchaseRequestApprovalService::class)->create($data, auth()->user());
     }
 
     protected function getCreatedNotificationTitle(): ?string

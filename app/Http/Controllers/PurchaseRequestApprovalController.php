@@ -26,14 +26,11 @@ class PurchaseRequestApprovalController extends Controller
         // Find PR
         $pr = PurchaseRequest::findOrFail($id);
 
-        // Check if user is logged in
+        // Not logged in: send to the Filament login page and remember this signed link
+        // as the intended URL, so CustomLoginResponse (redirect()->intended) brings
+        // the approver straight back here after login.
         if (!Auth::check()) {
-            return redirect()->route('login')
-                ->with('intended_approval', [
-                    'pr_id' => $id,
-                    'approver_id' => $request->approver_id,
-                    'token' => $request->token,
-                ]);
+            return redirect()->guest(route('filament.admin.auth.login'));
         }
 
         // Verify user is the designated approver

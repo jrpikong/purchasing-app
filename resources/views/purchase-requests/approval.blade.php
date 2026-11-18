@@ -7,6 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
+@php
+    // status & priority are cast to enums on the model — normalize to plain strings for display/comparison
+    $status = $pr->getStatusValue();
+    $priority = $pr->priority instanceof \App\Enums\Priority ? $pr->priority->value : (string) $pr->priority;
+    $isCurrentApprover = (int) $pr->current_approver_id === (int) auth()->id();
+@endphp
 <div class="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
     <div class="max-w-4xl mx-auto">
         <!-- Header -->
@@ -18,12 +24,12 @@
                 </div>
                 <div class="flex items-center space-x-2">
                         <span class="px-4 py-2 rounded-full text-sm font-semibold
-                            @if($pr->status === 'waiting_approval') bg-yellow-100 text-yellow-800
-                            @elseif($pr->status === 'approved') bg-green-100 text-green-800
-                            @elseif($pr->status === 'rejected') bg-red-100 text-red-800
+                            @if($status === 'waiting_approval') bg-yellow-100 text-yellow-800
+                            @elseif($status === 'approved') bg-green-100 text-green-800
+                            @elseif($status === 'rejected') bg-red-100 text-red-800
                             @else bg-gray-100 text-gray-800
                             @endif">
-                            {{ strtoupper(str_replace('_', ' ', $pr->status)) }}
+                            {{ strtoupper(str_replace('_', ' ', $status ?? '')) }}
                         </span>
                 </div>
             </div>
@@ -55,29 +61,29 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Priority</label>
                         <span class="mt-1 inline-block px-3 py-1 rounded-full text-sm font-semibold
-                                @if($pr->priority === 'urgent') bg-red-100 text-red-800
-                                @elseif($pr->priority === 'high') bg-orange-100 text-orange-800
-                                @elseif($pr->priority === 'medium') bg-blue-100 text-blue-800
+                                @if($priority === 'urgent') bg-red-100 text-red-800
+                                @elseif($priority === 'high') bg-orange-100 text-orange-800
+                                @elseif($priority === 'medium') bg-blue-100 text-blue-800
                                 @else bg-gray-100 text-gray-800
                                 @endif">
-                                {{ strtoupper($pr->priority) }}
+                                {{ strtoupper($priority) }}
                             </span>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Requested By</label>
-                        <p class="mt-1 text-gray-900">{{ $pr->requester->name }}</p>
+                        <p class="mt-1 text-gray-900">{{ $pr->requester?->name ?? '—' }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Department</label>
-                        <p class="mt-1 text-gray-900">{{ $pr->department->name }}</p>
+                        <p class="mt-1 text-gray-900">{{ $pr->department?->name ?? '—' }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Request Date</label>
-                        <p class="mt-1 text-gray-900">{{ $pr->request_date->format('d F Y') }}</p>
+                        <p class="mt-1 text-gray-900">{{ $pr->request_date?->format('d F Y') ?? '—' }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Required Date</label>
-                        <p class="mt-1 text-gray-900">{{ $pr->required_date->format('d F Y') }}</p>
+                        <p class="mt-1 text-gray-900">{{ $pr->required_date?->format('d F Y') ?? '—' }}</p>
                     </div>
                 </div>
 
@@ -144,12 +150,14 @@
                                     </svg>
                                     <div>
                                         <p class="text-sm font-medium text-gray-900">{{ $attachment->filename }}</p>
-                                        <p class="text-xs text-gray-500">{{ $attachment->getHumanSize() }}</p>
+                                        <p class="text-xs text-gray-500">{{ $attachment->size ? \Illuminate\Support\Number::fileSize($attachment->size) : '' }}</p>
                                     </div>
                                 </div>
-                                <a href="{{ $attachment->getUrl() }}" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                    Download
-                                </a>
+                                @if($attachmentUrl = $attachment->url())
+                                    <a href="{{ $attachmentUrl }}" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Download
+                                    </a>
+                                @endif
                             </li>
                         @endforeach
                     </ul>
@@ -158,7 +166,7 @@
         @endif
 
         <!-- Approval Form -->
-        @if($pr->status === 'waiting_approval' && $pr->current_approver_id === auth()->id())
+        @if($status === 'waiting_approval' && $isCurrentApprover)
             <div class="bg-white shadow rounded-lg overflow-hidden">
                 <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
                     <h2 class="text-lg font-semibold text-gray-900">Your Decision</h2>
@@ -223,12 +231,21 @@
                                 </div>
                                 <div class="flex-1">
                                     <div class="flex items-center justify-between">
-                                        <p class="text-sm font-medium text-gray-900">{{ $history->actor->name }}</p>
-                                        <p class="text-xs text-gray-500">{{ $history->acted_at->format('d M Y H:i') }}</p>
+                                        <p class="text-sm font-medium text-gray-900">{{ $history->actor?->name ?? '—' }}</p>
+                                        <p class="text-xs text-gray-500">{{ $history->acted_at?->format('d M Y H:i') }}</p>
                                     </div>
                                     <p class="mt-1 text-sm text-gray-600">
-                                    <span class="inline-block px-2 py-1 rounded text-xs font-semibold bg-{{ $history->getBadgeColor() }}-100 text-{{ $history->getBadgeColor() }}-800">
-                                        {{ $history->getActionLabel() }}
+                                    @php
+                                        $badgeColor = match ($history->action) {
+                                            'approved', 'marked_completed' => 'green',
+                                            'rejected', 'cancelled' => 'red',
+                                            'revision_requested' => 'orange',
+                                            'sent_for_approval' => 'yellow',
+                                            default => 'blue',
+                                        };
+                                    @endphp
+                                    <span class="inline-block px-2 py-1 rounded text-xs font-semibold bg-{{ $badgeColor }}-100 text-{{ $badgeColor }}-800">
+                                        {{ \Illuminate\Support\Str::headline($history->action ?? '') }}
                                     </span>
                                     </p>
                                     @if($history->comment)
