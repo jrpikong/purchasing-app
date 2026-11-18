@@ -1,3 +1,3 @@
-# Laravel scheduler for purchasing-app (runs approvals:check-overdue daily at 08:00).
+# Laravel scheduler for purchasing-app (runs approvals:check-overdue daily at 08:00 WIB).
 # Install for the web user: crontab -u www-data deploy/crontab
 * * * * * cd /var/www/purchasing-app && php artisan schedule:run >> /dev/null 2>&1
