@@ -169,6 +169,15 @@ class PurchaseRequestPolicy
     }
 
     /**
+     * Determine if user can resubmit after revision (requester only)
+     */
+    public function resubmit(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
+    {
+        return (int) $purchaseRequest->requester_id === $authUser->id
+            && $purchaseRequest->getStatusValue() === 'need_revision';
+    }
+
+    /**
      * Determine if user can request revision
      */
     public function requestRevision(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool

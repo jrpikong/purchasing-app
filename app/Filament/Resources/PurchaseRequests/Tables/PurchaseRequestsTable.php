@@ -419,6 +419,9 @@ class PurchaseRequestsTable
                         }
                     }),
 
+                // Resubmit after revision (requester)
+                static::resubmitAction(),
+
                 // Mark as Completed Action
                 Action::make('mark_completed')
                     ->label('Mark as Completed')
@@ -463,5 +466,48 @@ class PurchaseRequestsTable
                     RestoreBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Requester resubmits a PR after revising it. Shared with the view page.
+     */
+    public static function resubmitAction(): Action
+    {
+        return Action::make('resubmit')
+            ->label('Submit Ulang')
+            ->icon('heroicon-o-arrow-path')
+            ->color('primary')
+            ->visible(fn (PurchaseRequest $record) =>
+                auth()->user()->can('resubmit', $record)
+            )
+            ->requiresConfirmation()
+            ->modalHeading('Submit Ulang Purchase Request')
+            ->modalDescription(fn (PurchaseRequest $record) =>
+                "Pastikan PR {$record->pr_number} sudah direvisi. PIC/admin akan diberi tahu untuk mengirim ulang ke approval."
+            )
+            ->schema([
+                Textarea::make('comment')
+                    ->label('Catatan revisi (opsional)')
+                    ->helperText('Jelaskan apa saja yang sudah diperbaiki')
+                    ->rows(3),
+            ])
+            ->action(function (PurchaseRequest $record, array $data) {
+                try {
+                    app(PurchaseRequestApprovalService::class)
+                        ->resubmit($record, auth()->user(), $data['comment'] ?? null);
+
+                    FilamentNotification::make()
+                        ->success()
+                        ->title('PR disubmit ulang')
+                        ->body("PR {$record->pr_number} sudah dikirim kembali ke PIC/admin untuk direview")
+                        ->send();
+                } catch (\Exception $e) {
+                    FilamentNotification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body($e->getMessage())
+                        ->send();
+                }
+            });
     }
 }

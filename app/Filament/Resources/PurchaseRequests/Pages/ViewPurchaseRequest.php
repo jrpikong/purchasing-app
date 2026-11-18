@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PurchaseRequests\Pages;
 
 use App\Filament\Resources\PurchaseRequests\PurchaseRequestResource;
+use App\Filament\Resources\PurchaseRequests\Tables\PurchaseRequestsTable;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -15,6 +16,8 @@ class ViewPurchaseRequest extends ViewRecord
         return [
             EditAction::make()
                 ->visible(fn ($record) => auth()->user()->can('update', $record)),
+            PurchaseRequestsTable::resubmitAction()
+                ->after(fn () => $this->refreshFormData(['status'])),
         ];
     }
 

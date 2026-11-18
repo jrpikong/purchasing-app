@@ -12,6 +12,9 @@ use App\Notifications\PurchaseRequestAssignedNotification;
 use App\Notifications\PurchaseRequestSentForApprovalNotification;
 use App\Notifications\PurchaseRequestApprovedNotification;
 use App\Notifications\PurchaseRequestRejectedNotification;
+use App\Notifications\PurchaseRequestProgressNotification;
+use Illuminate\Notifications\Notification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
@@ -47,13 +50,56 @@ class PurchaseRequestApprovalService
                 comment: 'Purchase request created'
             );
 
-            // Notify all admins (is_admin flag OR admin/super_admin role — kept in sync to avoid drift)
-            $admins = User::where('is_admin', true)
-                ->orWhereIn('role', [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
-                ->get();
-            foreach ($admins as $admin) {
-                $admin->notify(new PurchaseRequestCreatedNotification($pr));
+            // Notify all admins
+            $this->notifyUsers($this->admins(), new PurchaseRequestCreatedNotification($pr));
+
+            return $pr->fresh();
+        });
+    }
+
+    /**
+     * Requester resubmits a PR after making the requested revisions.
+     * Moves need_revision → in_review and tells the PIC / admin to send it for approval again.
+     */
+    public function resubmit(PurchaseRequest $pr, User $actor, ?string $comment = null): PurchaseRequest
+    {
+        if ($pr->getStatusValue() !== PurchaseRequestStatus::NEED_REVISION->value) {
+            throw new Exception("Cannot resubmit. Current status: {$pr->getStatusValue()}");
+        }
+
+        if ((int) $pr->requester_id !== $actor->id) {
+            throw new Exception('Only the requester can resubmit this purchase request.');
+        }
+
+        return DB::transaction(function () use ($pr, $actor, $comment) {
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+
+            if ($pr->getStatusValue() !== PurchaseRequestStatus::NEED_REVISION->value) {
+                throw new Exception("Request has already been processed. Current status: {$pr->getStatusValue()}");
             }
+
+            $pr->update(['status' => PurchaseRequestStatus::IN_REVIEW]);
+
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: 'resubmitted',
+                fromStatus: PurchaseRequestStatus::NEED_REVISION,
+                toStatus: PurchaseRequestStatus::IN_REVIEW,
+                comment: $comment ?: 'Revised and resubmitted by requester'
+            );
+
+            // PIC / admin who sent it last; if nobody handled it yet, all admins
+            $recipients = $this->processorsFor($pr);
+            if ($recipients->isEmpty()) {
+                $recipients = $this->admins();
+            }
+
+            $this->notifyUsers($recipients, new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::RESUBMITTED,
+                ['actor' => $actor->name, 'note' => $comment]
+            ), except: $actor);
 
             return $pr->fresh();
         });
@@ -156,6 +202,13 @@ class PurchaseRequestApprovalService
             // Send email notification to approver (include token + expiry)
             $approver->notify(new PurchaseRequestSentForApprovalNotification($pr, $token, $tokenExpiry));
 
+            // Let the requester know their PR is now in the approval chain
+            $this->notifyUsers([$pr->requester], new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::SENT_FOR_APPROVAL,
+                ['actor' => $actor->name, 'next_approver' => $approver->name]
+            ), except: $actor);
+
             return $pr->fresh();
         });
     }
@@ -188,6 +241,8 @@ class PurchaseRequestApprovalService
                 $status = $pr->getStatusValue();
                 throw new Exception("Request has already been processed. Current status: {$status}");
             }
+
+            $approvedLevel = $pr->current_level_order;
 
             // Resolve the next level BEFORE recording anything: if the chain position is
             // unknown or the next level has no active approver, stop with an error instead
@@ -240,6 +295,18 @@ class PurchaseRequestApprovalService
                     $pr->approval_token_expires_at
                 ));
 
+                // Tell the requester their PR passed this level
+                $this->notifyUsers([$pr->requester], new PurchaseRequestProgressNotification(
+                    $pr,
+                    PurchaseRequestProgressNotification::LEVEL_APPROVED,
+                    [
+                        'actor' => $actor->name,
+                        'next_approver' => $nextApprover->name,
+                        'level' => $approvedLevel,
+                        'note' => $comment,
+                    ]
+                ), except: $actor);
+
             } else {
                 // This is the final approver - mark as fully approved
                 $pr->update([
@@ -264,6 +331,13 @@ class PurchaseRequestApprovalService
 
                 // Notify requester
                 $pr->requester->notify(new PurchaseRequestApprovedNotification($pr));
+
+                // Notify whoever processes the purchase (PIC / admin who sent it)
+                $this->notifyUsers($this->processorsFor($pr), new PurchaseRequestProgressNotification(
+                    $pr,
+                    PurchaseRequestProgressNotification::APPROVED,
+                    ['actor' => $actor->name, 'note' => $comment]
+                ), except: $actor, alsoExcept: $pr->requester);
             }
 
             return $pr->fresh();
@@ -372,6 +446,12 @@ class PurchaseRequestApprovalService
             // Notify requester
             $pr->requester->notify(new PurchaseRequestRejectedNotification($pr));
 
+            $this->notifyUsers($this->processorsFor($pr), new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::REJECTED,
+                ['actor' => $actor->name, 'note' => $reason]
+            ), except: $actor, alsoExcept: $pr->requester);
+
             return $pr->fresh();
         });
     }
@@ -395,6 +475,7 @@ class PurchaseRequestApprovalService
             }
 
             $previousStatus = $pr->getStatusValue();
+            $pendingApprover = $pr->currentApprover; // their email link stops working — tell them
 
             $pr->update([
                 'status' => PurchaseRequestStatus::CANCELLED,
@@ -412,6 +493,16 @@ class PurchaseRequestApprovalService
                 fromStatus: $previousStatus,
                 toStatus: PurchaseRequestStatus::CANCELLED,
                 comment: $reason
+            );
+
+            $this->notifyUsers(
+                [$pr->requester, ...$this->processorsFor($pr), $pendingApprover],
+                new PurchaseRequestProgressNotification(
+                    $pr,
+                    PurchaseRequestProgressNotification::CANCELLED,
+                    ['actor' => $actor->name, 'note' => $reason]
+                ),
+                except: $actor
             );
 
             return $pr->fresh();
@@ -452,6 +543,12 @@ class PurchaseRequestApprovalService
                 toStatus: PurchaseRequestStatus::COMPLETED,
                 comment: 'Purchase request marked as completed'
             );
+
+            $this->notifyUsers([$pr->requester], new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::COMPLETED,
+                ['actor' => $actor->name]
+            ), except: $actor);
 
             return $pr->fresh();
         });
@@ -566,7 +663,59 @@ class PurchaseRequestApprovalService
             // Notify requester
             $pr->requester->notify(new \App\Notifications\PurchaseRequestRevisionNotification($pr));
 
+            $this->notifyUsers($this->processorsFor($pr), new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::REVISION_REQUESTED,
+                ['actor' => $actor->name, 'note' => $revisionNotes]
+            ), except: $actor, alsoExcept: $pr->requester);
+
             return $pr->fresh();
         });
+    }
+
+    /**
+     * All admins (is_admin flag OR admin/super_admin role — kept in sync to avoid drift).
+     */
+    private function admins(): Collection
+    {
+        return User::where('is_admin', true)
+            ->orWhereIn('role', [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
+            ->get();
+    }
+
+    /**
+     * The people processing this PR: the assigned PIC, otherwise the admin who
+     * last sent it for approval. Empty when nobody has handled it yet.
+     */
+    private function processorsFor(PurchaseRequest $pr): Collection
+    {
+        if ($pr->assignedPic) {
+            return collect([$pr->assignedPic]);
+        }
+
+        $sender = ApprovalHistory::query()
+            ->where('purchase_request_id', $pr->id)
+            ->where('action', 'sent_for_approval')
+            ->latest('acted_at')
+            ->latest('id')
+            ->first()
+            ?->actor;
+
+        return collect([$sender])->filter();
+    }
+
+    /**
+     * Notify each distinct user once, skipping nulls and the given users
+     * (usually the actor — nobody needs an email about their own action).
+     */
+    private function notifyUsers(iterable $users, Notification $notification, ?User $except = null, ?User $alsoExcept = null): void
+    {
+        $skip = collect([$except?->id, $alsoExcept?->id])->filter()->all();
+
+        collect($users)
+            ->filter()
+            ->unique('id')
+            ->reject(fn (User $user) => in_array($user->id, $skip, true))
+            ->each(fn (User $user) => $user->notify($notification));
     }
 }
