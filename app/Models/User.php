@@ -5,6 +5,8 @@ namespace App\Models;
 
 use App\Enums\PositionEnum;
 use App\Enums\RoleEnum;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
     use HasFactory, Notifiable, SoftDeletes,HasRoles;
 
@@ -58,6 +60,16 @@ class User extends Authenticatable
         'role' => RoleEnum::class,
         'membership_expired_at' => 'datetime',
     ];
+
+    /**
+     * Required outside APP_ENV=local: without FilamentUser, Filament answers 403
+     * to every logged-in user in production. Active, non-expired users may enter;
+     * what they can do inside is governed by policies / Shield permissions.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->is_active !== false && ! $this->isExpired();
+    }
 
     public function isExpired(): bool
     {

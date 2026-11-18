@@ -56,7 +56,8 @@ class EmailLog extends Model
      */
     public function purchaseRequest()
     {
-        return $this->belongsTo(PurchaseRequest::class);
+        // Keep showing the PR number even if the PR was soft-deleted
+        return $this->belongsTo(PurchaseRequest::class)->withTrashed();
     }
 
     /**
@@ -64,7 +65,68 @@ class EmailLog extends Model
      */
     public function recipient()
     {
-        return $this->belongsTo(User::class, 'recipient_id');
+        return $this->belongsTo(User::class, 'recipient_id')->withTrashed();
+    }
+
+    public const STATUS_SENT = 'sent';
+    public const STATUS_FAILED = 'failed';
+    public const STATUS_PENDING = 'pending';
+
+    /**
+     * sent → delivered; failed → error recorded; pending → queued / in flight.
+     */
+    public function getStatusAttribute(): string
+    {
+        return match (true) {
+            $this->is_sent => self::STATUS_SENT,
+            filled($this->error_message) => self::STATUS_FAILED,
+            default => self::STATUS_PENDING,
+        };
+    }
+
+    public static function statusLabels(): array
+    {
+        return [
+            self::STATUS_SENT => 'Terkirim',
+            self::STATUS_FAILED => 'Gagal',
+            self::STATUS_PENDING => 'Menunggu',
+        ];
+    }
+
+    /**
+     * Human labels for every email_type the app writes (see EmailLogRecorder::typeOf()).
+     */
+    public static function typeLabels(): array
+    {
+        return [
+            'created' => 'PR Baru (ke Admin)',
+            'assigned' => 'PIC Ditugaskan',
+            self::TYPE_APPROVAL_REQUEST => 'Permintaan Approval',
+            self::TYPE_REMINDER => 'Reminder Approval',
+            self::TYPE_APPROVED => 'Approved (ke Requester)',
+            self::TYPE_REJECTED => 'Rejected (ke Requester)',
+            self::TYPE_REVISED => 'Perlu Revisi (ke Requester)',
+            self::TYPE_CANCELLED => 'Dibatalkan',
+            'progress_sent_for_approval' => 'Progres: Dikirim ke Approval',
+            'progress_level_approved' => 'Progres: Lolos Satu Level',
+            'progress_approved' => 'Progres: Final Approved (ke PIC)',
+            'progress_rejected' => 'Progres: Ditolak (ke PIC)',
+            'progress_revision_requested' => 'Progres: Diminta Revisi (ke PIC)',
+            'progress_resubmitted' => 'Progres: Submit Ulang',
+            'progress_cancelled' => 'Progres: Dibatalkan',
+            'progress_completed' => 'Progres: Selesai',
+            'progress_approval_stalled' => 'Eskalasi: Approval Macet',
+        ];
+    }
+
+    public function scopeStatus($query, string $status)
+    {
+        return match ($status) {
+            self::STATUS_SENT => $query->where('is_sent', true),
+            self::STATUS_FAILED => $query->where('is_sent', false)->whereNotNull('error_message'),
+            self::STATUS_PENDING => $query->where('is_sent', false)->whereNull('error_message'),
+            default => $query,
+        };
     }
 
     /**
@@ -104,14 +166,8 @@ class EmailLog extends Model
      */
     public function getEmailTypeLabelAttribute()
     {
-        return [
-            self::TYPE_APPROVAL_REQUEST => 'Approval Request',
-            self::TYPE_APPROVED => 'Approved',
-            self::TYPE_REJECTED => 'Rejected',
-            self::TYPE_REVISED => 'Need Revision',
-            self::TYPE_REMINDER => 'Reminder',
-            self::TYPE_CANCELLED => 'Cancelled',
-        ][$this->email_type] ?? $this->email_type;
+        return static::typeLabels()[$this->email_type]
+            ?? \Illuminate\Support\Str::headline((string) $this->email_type);
     }
 
     /**
