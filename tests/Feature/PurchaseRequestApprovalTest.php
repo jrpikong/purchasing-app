@@ -218,4 +218,106 @@ class PurchaseRequestApprovalTest extends TestCase
         $this->assertSame(PurchaseRequestStatus::COMPLETED, $pr2->status);
         $this->assertSame(1, $pr2->approvalHistories()->where('action', 'marked_completed')->count());
     }
+
+    public function test_send_for_approval_snapshots_flow_and_first_level(): void
+    {
+        $pr = $this->makePr(30_000_000);
+        $this->service->sendForApproval($pr, $pr->getFirstApprover(), $this->requester);
+        $pr->refresh();
+
+        $this->assertSame('Management Approval', $pr->approvalFlow->name);
+        $this->assertSame(1, $pr->current_level_order);
+
+        $this->service->approve($pr, $this->sectionHead);
+        $this->assertSame(2, $pr->fresh()->current_level_order);
+
+        $this->service->approve($pr->fresh(), $this->divisionHead);
+        $pr->refresh();
+        $this->assertSame(PurchaseRequestStatus::APPROVED, $pr->status);
+        $this->assertNull($pr->current_level_order);
+    }
+
+    public function test_same_user_on_two_consecutive_levels_does_not_loop(): void
+    {
+        // Division head also acts as section head for this department.
+        $this->department->update(['section_head_id' => $this->divisionHead->id]);
+
+        $pr = $this->makePr(75_000_000);
+        $this->service->sendForApproval($pr, $pr->getFirstApprover(), $this->requester);
+
+        $expectedOrder = [$this->divisionHead, $this->divisionHead, $this->financeAdmin, $this->treasurer];
+
+        foreach ($expectedOrder as $i => $expectedApprover) {
+            $pr->refresh();
+            $this->assertSame($i + 1, $pr->current_level_order);
+            $this->assertSame($expectedApprover->id, $pr->current_approver_id);
+            $this->service->approve($pr, $expectedApprover);
+        }
+
+        $this->assertSame(PurchaseRequestStatus::APPROVED, $pr->fresh()->status);
+    }
+
+    public function test_missing_next_level_approver_blocks_instead_of_auto_approving(): void
+    {
+        $pr = $this->makePr(75_000_000);
+        $this->service->sendForApproval($pr, $pr->getFirstApprover(), $this->requester);
+
+        // No active division head exists any more.
+        $this->divisionHead->update(['is_active' => false]);
+
+        try {
+            $this->service->approve($pr->fresh(), $this->sectionHead);
+            $this->fail('Approval should be blocked when the next level has no approver.');
+        } catch (\Exception $e) {
+            $this->assertStringContainsString('level 2', $e->getMessage());
+        }
+
+        $pr->refresh();
+        $this->assertSame(PurchaseRequestStatus::WAITING_APPROVAL, $pr->status);
+        $this->assertSame($this->sectionHead->id, $pr->current_approver_id);
+        $this->assertSame(1, $pr->current_level_order);
+        $this->assertNull($pr->section_head_approved_at);
+    }
+
+    public function test_legacy_pr_with_unknown_chain_position_is_not_auto_approved(): void
+    {
+        // PR sent before the snapshot columns existed, whose approver is no longer in the flow
+        $pr = $this->makePr(75_000_000);
+        $pr->update([
+            'status' => PurchaseRequestStatus::WAITING_APPROVAL,
+            'current_approver_id' => $this->requester->id,
+        ]);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('tidak dapat ditentukan');
+
+        try {
+            $this->service->approve($pr->fresh(), $this->requester);
+        } finally {
+            $this->assertSame(PurchaseRequestStatus::WAITING_APPROVAL, $pr->fresh()->status);
+        }
+    }
+
+    public function test_send_for_approval_rejects_approver_not_matching_first_level(): void
+    {
+        $pr = $this->makePr(5_000_000);
+
+        $this->expectException(\Exception::class);
+        $this->service->sendForApproval($pr, $this->treasurer, $this->requester);
+    }
+
+    public function test_pr_can_only_be_edited_in_draft_or_need_revision(): void
+    {
+        \Spatie\Permission\Models\Permission::findOrCreate('Update:PurchaseRequest');
+        $this->requester->givePermissionTo('Update:PurchaseRequest');
+
+        $pr = $this->makePr(5_000_000);
+        $this->assertTrue($this->requester->can('update', $pr));
+
+        $this->service->sendForApproval($pr, $pr->getFirstApprover(), $this->requester);
+        $this->assertFalse($this->requester->can('update', $pr->fresh()));
+
+        $this->service->requestRevision($pr->fresh(), $this->sectionHead, 'Perbaiki');
+        $this->assertTrue($this->requester->can('update', $pr->fresh()));
+    }
 }

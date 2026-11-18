@@ -50,6 +50,8 @@ class PurchaseRequest extends Model
         // workflow / approval
         'status',
         'current_approver_id',
+        'approval_flow_id',
+        'current_level_order',
         'assigned_pic_id',
         'sent_for_approval_at',
         'approval_deadline',
@@ -101,6 +103,7 @@ class PurchaseRequest extends Model
         'approval_token_expires_at' => 'datetime',
         'quotation_files' => 'array',
         'total_amount' => 'decimal:2',
+        'current_level_order' => 'integer',
         'status' => PurchaseRequestStatus::class,
         'priority' => Priority::class,
     ];
@@ -211,6 +214,14 @@ class PurchaseRequest extends Model
     public function currentApprover(): BelongsTo
     {
         return $this->belongsTo(User::class, 'current_approver_id');
+    }
+
+    /**
+     * The approval flow this PR was routed into when it was sent for approval.
+     */
+    public function approvalFlow(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalFlow::class, 'approval_flow_id');
     }
 
     /**
@@ -409,36 +420,25 @@ class PurchaseRequest extends Model
     }
 
     /**
-     * Find the next approver in the approval chain after the current one.
-     * Returns null if the current approver is the last level (fully approved).
+     * Find the active approval flow matching this PR's department and current amount.
+     * Only used when (re)sending for approval — once sent, the chosen flow is
+     * snapshotted in approval_flow_id so later amount edits don't change the chain.
      */
-    public function getNextApprover(): ?User
+    public function resolveApprovalFlow(): ?ApprovalFlow
     {
-        $flow = ApprovalFlow::query()
+        return ApprovalFlow::query()
             ->active()
             ->forDepartment($this->department_id)
             ->forAmount($this->total_amount)
             ->first();
+    }
 
-        if (! $flow) {
-            return null;
-        }
-
-        $levels      = $flow->levels()->orderBy('level_order')->get();
-        $foundCurrent = false;
-
-        foreach ($levels as $level) {
-            if ($foundCurrent) {
-                return $level->getApprover($this);
-            }
-
-            $approver = $level->getApprover($this);
-            if ($approver && $approver->id === $this->current_approver_id) {
-                $foundCurrent = true;
-            }
-        }
-
-        return null;
+    /**
+     * Get the first level of the approval chain for this PR.
+     */
+    public function getFirstApprovalLevel(): ?ApprovalLevel
+    {
+        return $this->resolveApprovalFlow()?->levels()->orderBy('level_order')->first();
     }
 
     /**
@@ -447,18 +447,50 @@ class PurchaseRequest extends Model
      */
     public function getFirstApprover(): ?User
     {
-        $flow = ApprovalFlow::query()
-            ->active()
-            ->forDepartment($this->department_id)
-            ->forAmount($this->total_amount)
-            ->first();
+        return $this->getFirstApprovalLevel()?->getApprover($this);
+    }
 
-        if (! $flow) {
-            return null;
+    /**
+     * The level that follows the current one, or null when the current level is the last.
+     *
+     * Advances by level_order on the snapshotted flow, so the chain can't loop when the
+     * same user sits on two levels and can't drift when total_amount is edited.
+     *
+     * @throws \RuntimeException when the current position in the chain can't be determined —
+     *         better to stop than to silently treat the PR as fully approved.
+     */
+    public function getNextApprovalLevel(): ?ApprovalLevel
+    {
+        $flow = $this->approvalFlow;
+
+        if ($flow && $this->current_level_order !== null) {
+            return $flow->levels()
+                ->where('level_order', '>', $this->current_level_order)
+                ->orderBy('level_order')
+                ->first();
         }
 
-        $firstLevel = $flow->levels()->orderBy('level_order')->first();
-        return $firstLevel?->getApprover($this);
+        // Legacy PRs sent before the snapshot columns existed: locate the current level
+        // by matching the current approver on the flow resolved from the current amount.
+        $flow ??= $this->resolveApprovalFlow();
+
+        if (! $flow) {
+            throw new \RuntimeException(
+                "Approval flow untuk PR {$this->pr_number} tidak ditemukan. Kirim ulang PR untuk approval."
+            );
+        }
+
+        $levels = $flow->levels()->orderBy('level_order')->get();
+
+        foreach ($levels as $index => $level) {
+            if ((int) $level->getApprover($this)?->id === (int) $this->current_approver_id) {
+                return $levels->get($index + 1);
+            }
+        }
+
+        throw new \RuntimeException(
+            "Posisi approval PR {$this->pr_number} tidak dapat ditentukan (approver saat ini tidak ada di approval flow). Kirim ulang PR untuk approval."
+        );
     }
 
     /**

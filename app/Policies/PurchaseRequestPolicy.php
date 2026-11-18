@@ -29,7 +29,10 @@ class PurchaseRequestPolicy
 
     public function update(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
     {
-        return $authUser->can('Update:PurchaseRequest');
+        // Only draft / need_revision PRs may be edited — editing while waiting for
+        // approval (or after) would let amount/content change under the approvers.
+        return $authUser->can('Update:PurchaseRequest')
+            && $purchaseRequest->isEditable();
     }
 
     public function delete(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool

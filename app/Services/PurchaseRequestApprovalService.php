@@ -111,7 +111,21 @@ class PurchaseRequestApprovalService
             throw new Exception("Cannot send for approval. Current status: {$currentStatus}");
         }
 
-        return DB::transaction(function () use ($pr, $approver, $actor, $deadline, $currentStatus) {
+        // Snapshot the flow (by the amount at send time) and start at its first level.
+        // Re-resolved on every (re)send, so a revised amount picks the right tier.
+        $flow = $pr->resolveApprovalFlow();
+        $firstLevel = $flow?->levels()->orderBy('level_order')->first();
+
+        if (! $firstLevel) {
+            throw new Exception('Tidak ditemukan approval flow yang sesuai untuk departemen/nominal PR ini.');
+        }
+
+        $expectedApprover = $firstLevel->getApprover($pr);
+        if (! $expectedApprover || (int) $expectedApprover->id !== (int) $approver->id) {
+            throw new Exception("Approver tidak sesuai dengan level pertama approval flow \"{$flow->name}\".");
+        }
+
+        return DB::transaction(function () use ($pr, $approver, $actor, $deadline, $currentStatus, $flow, $firstLevel) {
             // Generate approval token
             $token = Str::random(64);
             $tokenExpiry = now()->addDays(7); // Token valid for 7 days
@@ -120,6 +134,8 @@ class PurchaseRequestApprovalService
                 // assign enum; model cast will persist string
                 'status' => PurchaseRequestStatus::WAITING_APPROVAL,
                 'current_approver_id' => $approver->id,
+                'approval_flow_id' => $flow->id,
+                'current_level_order' => $firstLevel->level_order,
                 'sent_for_approval_at' => now(),
                 'approval_deadline' => $deadline,
                 'approval_token' => $token,
@@ -173,16 +189,34 @@ class PurchaseRequestApprovalService
                 throw new Exception("Request has already been processed. Current status: {$status}");
             }
 
+            // Resolve the next level BEFORE recording anything: if the chain position is
+            // unknown or the next level has no active approver, stop with an error instead
+            // of silently skipping levels / marking the PR fully approved.
+            try {
+                $nextLevel = $pr->getNextApprovalLevel();
+            } catch (\RuntimeException $e) {
+                throw new Exception($e->getMessage(), 0, $e);
+            }
+
+            $nextApprover = null;
+            if ($nextLevel) {
+                $nextApprover = $nextLevel->getApprover($pr);
+
+                if (! $nextApprover) {
+                    throw new Exception(
+                        "Approver untuk level {$nextLevel->level_order} ({$nextLevel->approver_display_name}) tidak ditemukan atau tidak aktif. Hubungi admin untuk memperbaiki approval flow sebelum melanjutkan."
+                    );
+                }
+            }
+
             // Update current level approval timestamp
             $this->updateApproverTimestamp($pr, $actor);
 
-            // Find next approver
-            $nextApprover = $pr->getNextApprover();
-
-            if ($nextApprover) {
+            if ($nextLevel) {
                 // More approval levels needed - forward to next approver
                 $pr->update([
                     'current_approver_id' => $nextApprover->id,
+                    'current_level_order' => $nextLevel->level_order,
                     // Generate new token for next approver
                     'approval_token' => Str::random(64),
                     'approval_token_expires_at' => now()->addDays(7),
@@ -213,6 +247,7 @@ class PurchaseRequestApprovalService
                     'approved_at' => now(),
                     'final_approver_id' => $actor->id,
                     'current_approver_id' => null,
+                    'current_level_order' => null,
                     'approval_token' => null,
                     'approval_token_expires_at' => null,
                 ]);
@@ -319,6 +354,7 @@ class PurchaseRequestApprovalService
                 'rejection_reason' => $reason,
                 'final_approver_id' => $actor->id,
                 'current_approver_id' => null,
+                'current_level_order' => null,
                 'approval_token' => null,
                 'approval_token_expires_at' => null,
             ]);
@@ -363,6 +399,7 @@ class PurchaseRequestApprovalService
             $pr->update([
                 'status' => PurchaseRequestStatus::CANCELLED,
                 'current_approver_id' => null,
+                'current_level_order' => null,
                 'approval_token' => null,
                 'approval_token_expires_at' => null,
                 'notes' => ($pr->notes ? $pr->notes . "\n\n" : '') . "Cancelled: " . $reason,
@@ -509,6 +546,7 @@ class PurchaseRequestApprovalService
             $pr->update([
                 'status' => PurchaseRequestStatus::NEED_REVISION,
                 'current_approver_id' => null,
+                'current_level_order' => null,
                 'approval_token' => null,
                 'approval_token_expires_at' => null,
                 'notes' => ($pr->notes ? $pr->notes . "\n\n" : '') .

@@ -56,19 +56,19 @@ class ApprovalLevel extends Model
      */
     public function getApprover($purchaseRequest = null): ?User
     {
+        // Explicitly assigned users must still be active to receive approvals
+        $active = fn (?User $user) => $user && $user->is_active ? $user : null;
+
         switch ($this->role_type) {
             case self::ROLE_TYPE_SPECIFIC_USER:
-                return $this->approver;
+                return $active($this->approver);
 
             case self::ROLE_TYPE_DEPARTMENT_HEAD:
-                if ($purchaseRequest && $purchaseRequest->department) {
-                    return $purchaseRequest->department->head;
-                }
-                break;
+                return $active($purchaseRequest?->department?->head);
 
             case self::ROLE_TYPE_SECTION_HEAD:
-                if ($purchaseRequest?->department?->sectionHead) {
-                    return $purchaseRequest->department->sectionHead;
+                if ($sectionHead = $active($purchaseRequest?->department?->sectionHead)) {
+                    return $sectionHead;
                 }
 
                 return User::where('role', User::ROLE_SECTION_HEAD)
