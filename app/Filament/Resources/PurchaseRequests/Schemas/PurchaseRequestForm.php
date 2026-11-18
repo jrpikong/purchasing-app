@@ -31,7 +31,7 @@ class PurchaseRequestForm
     public static function configure(Schema $schema): Schema
     {
         $isEdit = fn($livewire) => $livewire instanceof EditPurchaseRequest;
-        $isAdmin = fn() => auth()->user()?->hasRole(['admin', 'super_admin']) ?? false;
+        $isAdmin = fn() => auth()->user()?->hasAppRole(['admin', 'super_admin']) ?? false;
         $isLocked = fn(?PurchaseRequest $record) => $record !== null && ! $record->isEditable();
 
         return $schema->components([

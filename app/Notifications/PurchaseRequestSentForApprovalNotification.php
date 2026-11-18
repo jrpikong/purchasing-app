@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Models\PurchaseRequest;
 use App\Enums\PurchaseRequestStatus;
+use App\Notifications\Concerns\RecordsEmailFailure;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\URL;
 
 class PurchaseRequestSentForApprovalNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RecordsEmailFailure;
 
     /**
      * @param PurchaseRequest $purchaseRequest
@@ -22,7 +23,8 @@ class PurchaseRequestSentForApprovalNotification extends Notification implements
     public function __construct(
         public PurchaseRequest $purchaseRequest,
         public ?string $token = null,
-        public ?\DateTimeInterface $expiresAt = null
+        public ?\DateTimeInterface $expiresAt = null,
+        public bool $isReminder = false,
     ) {}
 
     public function via(object $notifiable): array
@@ -63,9 +65,24 @@ class PurchaseRequestSentForApprovalNotification extends Notification implements
         $approveUrl = $this->buildApproveUrl($notifiable);
 
         $mail = (new MailMessage)
-            ->subject("Approval required: {$pr->pr_number}")
+            ->subject(($this->isReminder ? 'Reminder — ' : '') . "Approval required: {$pr->pr_number}")
             ->greeting("Hello {$notifiable->name},")
-            ->line("A purchase request requires your approval.")
+            ->line($this->isReminder
+                ? 'This is a reminder that a purchase request is still waiting for your approval. A new approval link is included below; earlier links no longer work.'
+                : 'A purchase request requires your approval.');
+
+        if ($this->isReminder) {
+            $waitingSince = $pr->current_level_started_at ?? $pr->sent_for_approval_at;
+            if ($waitingSince) {
+                $mail->line('**Waiting since:** ' . $waitingSince->format('d M Y H:i'));
+            }
+            if ($pr->approval_deadline) {
+                $mail->line('**Approval deadline:** ' . $pr->approval_deadline->format('d M Y H:i')
+                    . ($pr->approval_deadline->isPast() ? ' (overdue)' : ''));
+            }
+        }
+
+        $mail
             ->line("**PR Number:** {$pr->pr_number}")
             ->line("**Requester:** {$requesterName}")
             ->line("**Department:** {$department}")
@@ -90,8 +107,10 @@ class PurchaseRequestSentForApprovalNotification extends Notification implements
         return [
             'purchase_request_id' => $pr->id,
             'pr_number' => $pr->pr_number,
-            'action' => 'sent_for_approval',
-            'message' => "PR {$pr->pr_number} sent to you for approval",
+            'action' => $this->isReminder ? 'approval_reminder' : 'sent_for_approval',
+            'message' => $this->isReminder
+                ? "Reminder: PR {$pr->pr_number} is waiting for your approval"
+                : "PR {$pr->pr_number} sent to you for approval",
             'approver_id' => $pr->current_approver_id,
         ];
     }

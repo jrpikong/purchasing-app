@@ -78,7 +78,7 @@ class ApproverDashboard extends Page
     public static function canView(): bool
     {
         $user = FilamentView::auth()->user();
-        return $user->hasRole(['section_head', 'division_head', 'finance_admin', 'treasurer', 'admin', 'super_admin']);
+        return $user->hasAppRole(['section_head', 'division_head', 'finance_admin', 'treasurer', 'admin', 'super_admin']);
     }
 
     public function getView(): string

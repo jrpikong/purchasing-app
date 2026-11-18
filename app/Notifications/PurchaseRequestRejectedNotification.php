@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\PurchaseRequest;
+use App\Notifications\Concerns\RecordsEmailFailure;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notification;
 
 class PurchaseRequestRejectedNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RecordsEmailFailure;
 
     public function __construct(
         public PurchaseRequest $purchaseRequest

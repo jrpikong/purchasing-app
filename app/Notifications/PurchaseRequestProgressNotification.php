@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\PurchaseRequest;
+use App\Notifications\Concerns\RecordsEmailFailure;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -19,7 +20,7 @@ use Illuminate\Support\Str;
  */
 class PurchaseRequestProgressNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RecordsEmailFailure;
 
     public const SENT_FOR_APPROVAL  = 'sent_for_approval';   // → requester
     public const LEVEL_APPROVED     = 'level_approved';      // → requester
@@ -29,6 +30,7 @@ class PurchaseRequestProgressNotification extends Notification implements Should
     public const RESUBMITTED        = 'resubmitted';         // → PIC / sender / admins
     public const CANCELLED          = 'cancelled';           // → requester, PIC, current approver
     public const COMPLETED          = 'completed';           // → requester
+    public const APPROVAL_STALLED   = 'approval_stalled';    // → PIC / sender / admins, after reminders run out
 
     /**
      * @param array{actor?: string, next_approver?: string, note?: string, level?: int} $context
@@ -81,6 +83,9 @@ class PurchaseRequestProgressNotification extends Notification implements Should
             self::COMPLETED => $mail
                 ->line('Your purchase request has been marked as completed.')
                 ->line("**Completed by:** {$actor}"),
+            self::APPROVAL_STALLED => $mail
+                ->line('A purchase request is still waiting for approval after several reminders. Please follow up with the approver, or resend the approval link from the PR page.')
+                ->line("**Waiting for:** {$next}"),
             default => $mail->line('There is an update on a purchase request.'),
         };
 
@@ -125,6 +130,7 @@ class PurchaseRequestProgressNotification extends Notification implements Should
             self::RESUBMITTED        => "PR {$no} revised and resubmitted",
             self::CANCELLED          => "PR {$no} has been cancelled",
             self::COMPLETED          => "PR {$no} has been completed",
+            self::APPROVAL_STALLED   => "PR {$no} is stuck waiting for approval",
             default                  => "Update on PR {$no}",
         };
     }

@@ -52,6 +52,9 @@ class PurchaseRequest extends Model
         'current_approver_id',
         'approval_flow_id',
         'current_level_order',
+        'current_level_started_at',
+        'last_reminded_at',
+        'reminder_count',
         'assigned_pic_id',
         'sent_for_approval_at',
         'approval_deadline',
@@ -104,6 +107,9 @@ class PurchaseRequest extends Model
         'quotation_files' => 'array',
         'total_amount' => 'decimal:2',
         'current_level_order' => 'integer',
+        'current_level_started_at' => 'datetime',
+        'last_reminded_at' => 'datetime',
+        'reminder_count' => 'integer',
         'status' => PurchaseRequestStatus::class,
         'priority' => Priority::class,
     ];
@@ -434,40 +440,80 @@ class PurchaseRequest extends Model
     }
 
     /**
-     * Get the first level of the approval chain for this PR.
+     * Find the next level that needs a decision, after $afterLevelOrder (null = from the start).
+     *
+     * Levels whose approver is the requester are skipped (no self-approval) and returned
+     * in 'skipped' so they can be logged. 'level'/'approver' are null when no level remains.
+     *
+     * @return array{level: ?ApprovalLevel, approver: ?User, skipped: ApprovalLevel[]}
+     * @throws \RuntimeException when a level has no active approver — better to stop
+     *         than to skip it and silently approve with fewer levels.
      */
-    public function getFirstApprovalLevel(): ?ApprovalLevel
+    public function findApprovalStep(ApprovalFlow $flow, ?int $afterLevelOrder = null): array
     {
-        return $this->resolveApprovalFlow()?->levels()->orderBy('level_order')->first();
+        $query = $flow->levels()->reorder()->orderBy('level_order');
+
+        if ($afterLevelOrder !== null) {
+            $query->where('level_order', '>', $afterLevelOrder);
+        }
+
+        $skipped = [];
+
+        foreach ($query->get() as $level) {
+            $approver = $level->getApprover($this);
+
+            if (! $approver) {
+                throw new \RuntimeException(
+                    "Approver untuk level {$level->level_order} ({$level->approver_display_name}) tidak ditemukan atau tidak aktif. Hubungi admin untuk memperbaiki approval flow sebelum melanjutkan."
+                );
+            }
+
+            if ((int) $approver->id === (int) $this->requester_id) {
+                $skipped[] = $level;
+                continue;
+            }
+
+            return ['level' => $level, 'approver' => $approver, 'skipped' => $skipped];
+        }
+
+        return ['level' => null, 'approver' => null, 'skipped' => $skipped];
     }
 
     /**
-     * Get the first approver in the approval chain for this PR.
-     * Used when sending for approval the first time.
+     * Get the first approver in the approval chain for this PR (skipping the requester).
+     * Null when no flow matches or the chain can't be routed.
      */
     public function getFirstApprover(): ?User
     {
-        return $this->getFirstApprovalLevel()?->getApprover($this);
+        $flow = $this->resolveApprovalFlow();
+
+        if (! $flow) {
+            return null;
+        }
+
+        try {
+            return $this->findApprovalStep($flow)['approver'];
+        } catch (\RuntimeException) {
+            return null;
+        }
     }
 
     /**
-     * The level that follows the current one, or null when the current level is the last.
+     * The next step after the current level.
      *
      * Advances by level_order on the snapshotted flow, so the chain can't loop when the
      * same user sits on two levels and can't drift when total_amount is edited.
      *
-     * @throws \RuntimeException when the current position in the chain can't be determined —
-     *         better to stop than to silently treat the PR as fully approved.
+     * @return array{level: ?ApprovalLevel, approver: ?User, skipped: ApprovalLevel[]}
+     * @throws \RuntimeException when the current position in the chain can't be determined
+     *         or the next level has no approver — better to stop than to silently approve.
      */
-    public function getNextApprovalLevel(): ?ApprovalLevel
+    public function getNextApprovalStep(): array
     {
         $flow = $this->approvalFlow;
 
         if ($flow && $this->current_level_order !== null) {
-            return $flow->levels()
-                ->where('level_order', '>', $this->current_level_order)
-                ->orderBy('level_order')
-                ->first();
+            return $this->findApprovalStep($flow, $this->current_level_order);
         }
 
         // Legacy PRs sent before the snapshot columns existed: locate the current level
@@ -482,9 +528,9 @@ class PurchaseRequest extends Model
 
         $levels = $flow->levels()->orderBy('level_order')->get();
 
-        foreach ($levels as $index => $level) {
+        foreach ($levels as $level) {
             if ((int) $level->getApprover($this)?->id === (int) $this->current_approver_id) {
-                return $levels->get($index + 1);
+                return $this->findApprovalStep($flow, $level->level_order);
             }
         }
 
@@ -499,9 +545,8 @@ class PurchaseRequest extends Model
      */
     public function scopeVisibleToUser($query, User $user)
     {
-        // Admin can see all (is_admin flag OR admin/super_admin role — kept in sync to avoid drift)
-        $roleValue = $user->role instanceof \App\Enums\RoleEnum ? $user->role->value : $user->role;
-        if ($user->is_admin || in_array($roleValue, [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN], true)) {
+        // Admin can see all (is_admin flag, admin column role or Spatie role)
+        if ($user->isAdmin()) {
             return $query;
         }
 

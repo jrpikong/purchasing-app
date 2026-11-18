@@ -141,7 +141,7 @@ class PurchaseRequestApprovalService
      */
     public function sendForApproval(
         PurchaseRequest $pr,
-        User $approver,
+        ?User $approver,
         User $actor,
         ?Carbon $deadline = null
     ): PurchaseRequest {
@@ -160,21 +160,34 @@ class PurchaseRequestApprovalService
         // Snapshot the flow (by the amount at send time) and start at its first level.
         // Re-resolved on every (re)send, so a revised amount picks the right tier.
         $flow = $pr->resolveApprovalFlow();
-        $firstLevel = $flow?->levels()->orderBy('level_order')->first();
 
-        if (! $firstLevel) {
-            throw new Exception('Tidak ditemukan approval flow yang sesuai untuk departemen/nominal PR ini.');
+        if (! $flow) {
+            throw new Exception('Tidak ditemukan approval flow yang sesuai untuk departemen/nominal PR ini. Hubungi admin untuk mengatur Approval Flow.');
         }
 
-        $expectedApprover = $firstLevel->getApprover($pr);
-        if (! $expectedApprover || (int) $expectedApprover->id !== (int) $approver->id) {
+        try {
+            $step = $pr->findApprovalStep($flow);
+        } catch (\RuntimeException $e) {
+            throw new Exception($e->getMessage(), 0, $e);
+        }
+
+        if (! $step['level']) {
+            // Every level would be decided by the requester themselves
+            throw new Exception("Semua level di approval flow \"{$flow->name}\" dipegang oleh requester sendiri. Atur approval flow agar ada approver lain.");
+        }
+
+        $firstLevel = $step['level'];
+        $expectedApprover = $step['approver'];
+
+        if ($approver && (int) $expectedApprover->id !== (int) $approver->id) {
             throw new Exception("Approver tidak sesuai dengan level pertama approval flow \"{$flow->name}\".");
         }
+        $approver = $expectedApprover;
 
-        return DB::transaction(function () use ($pr, $approver, $actor, $deadline, $currentStatus, $flow, $firstLevel) {
+        return DB::transaction(function () use ($pr, $approver, $actor, $deadline, $currentStatus, $flow, $firstLevel, $step) {
             // Generate approval token
             $token = Str::random(64);
-            $tokenExpiry = now()->addDays(7); // Token valid for 7 days
+            $tokenExpiry = now()->addDays(self::TOKEN_TTL_DAYS);
 
             $pr->update([
                 // assign enum; model cast will persist string
@@ -182,11 +195,16 @@ class PurchaseRequestApprovalService
                 'current_approver_id' => $approver->id,
                 'approval_flow_id' => $flow->id,
                 'current_level_order' => $firstLevel->level_order,
+                'current_level_started_at' => now(),
+                'last_reminded_at' => null,
+                'reminder_count' => 0,
                 'sent_for_approval_at' => now(),
                 'approval_deadline' => $deadline,
                 'approval_token' => $token,
                 'approval_token_expires_at' => $tokenExpiry,
             ]);
+
+            $this->logSkippedLevels($pr, $actor, $step['skipped']);
 
             // Log history: from previous status -> waiting_approval
             $this->logHistory(
@@ -232,6 +250,8 @@ class PurchaseRequestApprovalService
             throw new Exception("You are not authorized to approve this request.");
         }
 
+        $this->guardAgainstSelfDecision($pr, $actor);
+
         return DB::transaction(function () use ($pr, $actor, $comment) {
             // Lock the row for update
             $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
@@ -248,33 +268,30 @@ class PurchaseRequestApprovalService
             // unknown or the next level has no active approver, stop with an error instead
             // of silently skipping levels / marking the PR fully approved.
             try {
-                $nextLevel = $pr->getNextApprovalLevel();
+                $step = $pr->getNextApprovalStep();
             } catch (\RuntimeException $e) {
                 throw new Exception($e->getMessage(), 0, $e);
             }
 
-            $nextApprover = null;
-            if ($nextLevel) {
-                $nextApprover = $nextLevel->getApprover($pr);
-
-                if (! $nextApprover) {
-                    throw new Exception(
-                        "Approver untuk level {$nextLevel->level_order} ({$nextLevel->approver_display_name}) tidak ditemukan atau tidak aktif. Hubungi admin untuk memperbaiki approval flow sebelum melanjutkan."
-                    );
-                }
-            }
+            $nextLevel = $step['level'];
+            $nextApprover = $step['approver'];
 
             // Update current level approval timestamp
             $this->updateApproverTimestamp($pr, $actor);
+
+            $this->logSkippedLevels($pr, $actor, $step['skipped']);
 
             if ($nextLevel) {
                 // More approval levels needed - forward to next approver
                 $pr->update([
                     'current_approver_id' => $nextApprover->id,
                     'current_level_order' => $nextLevel->level_order,
+                    'current_level_started_at' => now(),
+                    'last_reminded_at' => null,
+                    'reminder_count' => 0,
                     // Generate new token for next approver
                     'approval_token' => Str::random(64),
-                    'approval_token_expires_at' => now()->addDays(7),
+                    'approval_token_expires_at' => now()->addDays(self::TOKEN_TTL_DAYS),
                 ]);
 
                 // Log history
@@ -411,6 +428,8 @@ class PurchaseRequestApprovalService
         if ((int)$pr->current_approver_id !== $actor->id) {
             throw new Exception("You are not authorized to reject this request.");
         }
+
+        $this->guardAgainstSelfDecision($pr, $actor);
 
         return DB::transaction(function () use ($pr, $actor, $reason, $comment) {
             // Lock the row for update
@@ -561,7 +580,7 @@ class PurchaseRequestApprovalService
      */
     private function logHistory(
         PurchaseRequest $pr,
-        User $actor,
+        ?User $actor,
         string $action,
         PurchaseRequestStatus|string|null $fromStatus,
         PurchaseRequestStatus|string|null $toStatus,
@@ -582,7 +601,7 @@ class PurchaseRequestApprovalService
 
         return ApprovalHistory::create([
             'purchase_request_id' => $pr->id,
-            'actor_id' => $actor->id,
+            'actor_id' => $actor?->id,
             'action' => $action,
             'comment' => $comment,
             'from_status' => $from,
@@ -628,6 +647,8 @@ class PurchaseRequestApprovalService
             throw new Exception("You are not authorized to request revision for this request.");
         }
 
+        $this->guardAgainstSelfDecision($pr, $actor);
+
         return DB::transaction(function () use ($pr, $actor, $revisionNotes) {
             // Lock the row for update
             $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
@@ -661,7 +682,12 @@ class PurchaseRequestApprovalService
             );
 
             // Notify requester
-            $pr->requester->notify(new \App\Notifications\PurchaseRequestRevisionNotification($pr));
+            // Pass only THIS round's notes — `notes` accumulates every past revision/cancel note
+            $pr->requester->notify(new \App\Notifications\PurchaseRequestRevisionNotification(
+                $pr,
+                $revisionNotes,
+                $actor->name
+            ));
 
             $this->notifyUsers($this->processorsFor($pr), new PurchaseRequestProgressNotification(
                 $pr,
@@ -674,13 +700,138 @@ class PurchaseRequestApprovalService
     }
 
     /**
-     * All admins (is_admin flag OR admin/super_admin role — kept in sync to avoid drift).
+     * Issue a fresh approval link to the current approver (e.g. the old one expired
+     * or the email got lost). Invalidates the previous link.
+     */
+    public function resendApprovalLink(PurchaseRequest $pr, ?User $actor, bool $isReminder = false): PurchaseRequest
+    {
+        if (! $pr->isWaitingApproval() || ! $pr->current_approver_id) {
+            throw new Exception("Cannot resend approval link. Current status: {$pr->getStatusValue()}");
+        }
+
+        return DB::transaction(function () use ($pr, $actor, $isReminder) {
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+            $approver = $pr->currentApprover;
+
+            if (! $pr->isWaitingApproval() || ! $approver) {
+                throw new Exception("Cannot resend approval link. Current status: {$pr->getStatusValue()}");
+            }
+
+            $token = Str::random(64);
+            $expiry = now()->addDays(self::TOKEN_TTL_DAYS);
+
+            $pr->update([
+                'approval_token' => $token,
+                'approval_token_expires_at' => $expiry,
+                ...($isReminder ? [
+                    'last_reminded_at' => now(),
+                    'reminder_count' => (int) $pr->reminder_count + 1,
+                ] : []),
+            ]);
+
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: $isReminder ? 'reminder_sent' : 'approval_link_resent',
+                fromStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                toStatus: PurchaseRequestStatus::WAITING_APPROVAL,
+                comment: ($isReminder ? 'Reminder' : 'New approval link') . " sent to {$approver->name}",
+                nextApproverId: $approver->id
+            );
+
+            $approver->notify(new PurchaseRequestSentForApprovalNotification($pr, $token, $expiry, $isReminder));
+
+            return $pr->fresh();
+        });
+    }
+
+    /**
+     * Reminders have run out and the approver still hasn't acted: tell the people
+     * processing the PR (PIC / sender, else all admins) once, so a human follows up.
+     */
+    public function escalateStalledApproval(PurchaseRequest $pr): PurchaseRequest
+    {
+        return DB::transaction(function () use ($pr) {
+            $pr = PurchaseRequest::where('id', $pr->id)->lockForUpdate()->first();
+            $approver = $pr->currentApprover;
+
+            $pr->update([
+                'last_reminded_at' => now(),
+                'reminder_count' => self::MAX_REMINDERS + 1, // marks "escalated" — not repeated
+            ]);
+
+            $this->logHistory(
+                pr: $pr,
+                actor: null,
+                action: 'approval_stalled',
+                fromStatus: $pr->getStatusValue(),
+                toStatus: $pr->getStatusValue(),
+                comment: 'No decision after ' . self::MAX_REMINDERS . ' reminders — escalated to PIC/admin',
+                nextApproverId: $approver?->id
+            );
+
+            $recipients = $this->processorsFor($pr);
+            if ($recipients->isEmpty()) {
+                $recipients = $this->admins();
+            }
+
+            $this->notifyUsers($recipients, new PurchaseRequestProgressNotification(
+                $pr,
+                PurchaseRequestProgressNotification::APPROVAL_STALLED,
+                ['next_approver' => $approver?->name]
+            ));
+
+            return $pr->fresh();
+        });
+    }
+
+    /**
+     * Approval link lifetime.
+     */
+    public const TOKEN_TTL_DAYS = 7;
+
+    /**
+     * Automatic reminders per approval level before escalating to PIC/admin.
+     */
+    public const MAX_REMINDERS = 3;
+
+    /**
+     * No self-approval: the requester can never decide on their own PR.
+     * (Routing already skips such levels; this guards legacy/hand-edited data.)
+     */
+    private function guardAgainstSelfDecision(PurchaseRequest $pr, User $actor): void
+    {
+        if ((int) $pr->requester_id === (int) $actor->id) {
+            throw new Exception('Requester tidak dapat memutuskan (approve/reject/revisi) PR miliknya sendiri.');
+        }
+    }
+
+    /**
+     * Record levels skipped because their approver is the requester.
+     *
+     * @param \App\Models\ApprovalLevel[] $levels
+     */
+    private function logSkippedLevels(PurchaseRequest $pr, User $actor, array $levels): void
+    {
+        foreach ($levels as $level) {
+            $this->logHistory(
+                pr: $pr,
+                actor: $actor,
+                action: 'level_skipped',
+                fromStatus: $pr->getStatusValue(),
+                toStatus: $pr->getStatusValue(),
+                comment: "Level {$level->level_order} ({$level->approver_display_name}) dilewati: approver adalah requester sendiri",
+                meta: ['level_order' => $level->level_order, 'approval_level_id' => $level->id]
+            );
+        }
+    }
+
+    /**
+     * All active admins.
      */
     private function admins(): Collection
     {
-        return User::where('is_admin', true)
-            ->orWhereIn('role', [User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])
-            ->get();
+        return User::query()->admins()->get();
     }
 
     /**

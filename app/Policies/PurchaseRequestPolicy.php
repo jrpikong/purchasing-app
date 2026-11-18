@@ -6,6 +6,7 @@ namespace App\Policies;
 
 use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\PurchaseRequest;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class PurchaseRequestPolicy
@@ -76,7 +77,7 @@ class PurchaseRequestPolicy
     public function assign(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
     {
         // Only admins can assign PIC
-        if ($authUser->hasRole(['admin', 'super_admin'])) {
+        if ($this->isAdmin($authUser)) {
             return $purchaseRequest->isDraft() || $purchaseRequest->isWaitingApproval();
         }
         return false;
@@ -88,7 +89,7 @@ class PurchaseRequestPolicy
     public function sendForApproval(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
     {
         // Only admins can send for approval
-        if ($authUser->hasRole(['admin', 'super_admin'])) {
+        if ($this->isAdmin($authUser)) {
             return in_array($purchaseRequest->getStatusValue(), [
                 'draft',
                 'in_review',
@@ -108,20 +109,10 @@ class PurchaseRequestPolicy
             return false;
         }
 
-        // Check if user is the current approver
-        if ((int)$purchaseRequest->current_approver_id !== $authUser->id) {
-            return false;
-        }
-
-        // Check if user has approver role
-        return $authUser->hasRole([
-            'section_head',
-            'division_head',
-            'finance_admin',
-            'treasurer',
-            'admin',
-            'super_admin',
-        ]);
+        // Being the assigned current approver is what grants the right to decide —
+        // a role whitelist would lock out "specific user" / "role based" levels
+        // whose approver holds a role outside it (e.g. "approver").
+        return $this->isCurrentApproverButNotRequester($authUser, $purchaseRequest);
     }
 
     /**
@@ -139,7 +130,7 @@ class PurchaseRequestPolicy
     public function cancel(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
     {
         // Admin can cancel any PR that's not completed or already cancelled
-        if ($authUser->hasRole(['admin', 'super_admin'])) {
+        if ($this->isAdmin($authUser)) {
             return $purchaseRequest->isCancellable();
         }
 
@@ -160,7 +151,7 @@ class PurchaseRequestPolicy
     public function markCompleted(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
     {
         // Only admins can mark as completed
-        if (!$authUser->hasRole(['admin', 'super_admin'])) {
+        if (!$this->isAdmin($authUser)) {
             return false;
         }
 
@@ -178,6 +169,16 @@ class PurchaseRequestPolicy
     }
 
     /**
+     * Determine if user can resend the approval email to the current approver (admin only)
+     */
+    public function resendApprovalLink(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
+    {
+        return $this->isAdmin($authUser)
+            && $purchaseRequest->isWaitingApproval()
+            && $purchaseRequest->current_approver_id !== null;
+    }
+
+    /**
      * Determine if user can request revision
      */
     public function requestRevision(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
@@ -187,18 +188,21 @@ class PurchaseRequestPolicy
             return false;
         }
 
-        if ((int)$purchaseRequest->current_approver_id !== $authUser->id) {
-            return false;
-        }
-
-        return $authUser->hasRole([
-            'section_head',
-            'division_head',
-            'finance_admin',
-            'treasurer',
-            'admin',
-            'super_admin',
-        ]);
+        return $this->isCurrentApproverButNotRequester($authUser, $purchaseRequest);
     }
 
+    /**
+     * The current approver may decide — unless they requested the PR themselves
+     * (no self-approval; the service skips such levels when routing).
+     */
+    private function isCurrentApproverButNotRequester(AuthUser $authUser, PurchaseRequest $purchaseRequest): bool
+    {
+        return (int) $purchaseRequest->current_approver_id === (int) $authUser->id
+            && (int) $purchaseRequest->requester_id !== (int) $authUser->id;
+    }
+
+    private function isAdmin(AuthUser $authUser): bool
+    {
+        return $authUser instanceof User && $authUser->isAdmin();
+    }
 }

@@ -12,17 +12,17 @@ class Dashboard extends BaseDashboard
         $user = Auth::user();
 
         // Redirect to appropriate dashboard based on role priority
-        if ($user->hasRole(['admin', 'super_admin'])) {
+        if ($user->hasAppRole(['admin', 'super_admin'])) {
             $this->redirect(AdminDashboard::getUrl(), navigate: true);
             return;
         }
 
-        if ($user->hasRole(['section_head', 'division_head', 'finance_admin', 'treasurer'])) {
+        if ($user->hasAppRole(['section_head', 'division_head', 'finance_admin', 'treasurer'])) {
             $this->redirect(ApproverDashboard::getUrl(), navigate: true);
             return;
         }
 
-        if ($user->hasRole(['requester'])) {
+        if ($user->hasAppRole(['requester'])) {
             $this->redirect(RequesterDashboard::getUrl(), navigate: true);
             return;
         }

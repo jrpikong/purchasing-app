@@ -150,9 +150,79 @@ class User extends Authenticatable
     /**
      * Check if user is admin
      */
-    public function isAdmin()
+    public function isAdmin(): bool
     {
-        return in_array($this->role, [self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN]);
+        return (bool) $this->is_admin || $this->hasAppRole([self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN]);
+    }
+
+    /**
+     * Single source of truth for "does this user have role X".
+     *
+     * Spatie roles win: the Filament user form only sets Spatie roles and never the
+     * `role` column, whose DB default is 'admin' — so the column is only trusted for
+     * legacy users that have no Spatie role at all.
+     */
+    public function hasAppRole(string|array $roles): bool
+    {
+        $roles = (array) $roles;
+
+        if ($this->roles->isNotEmpty()) {
+            return $this->hasRole($roles);
+        }
+
+        $column = $this->role instanceof RoleEnum ? $this->role->value : $this->role;
+
+        return in_array($column, $roles, true);
+    }
+
+    /**
+     * Users holding any of the given roles — same rule as hasAppRole().
+     */
+    public function scopeWithAppRole($query, string|array $roles)
+    {
+        $roles = (array) $roles;
+
+        return $query->where(function ($q) use ($roles) {
+            $q->whereHas('roles', fn ($r) => $r->whereIn('name', $roles))
+                ->orWhere(fn ($q) => $q->doesntHave('roles')->whereIn('role', $roles));
+        });
+    }
+
+    /**
+     * Keep the legacy `role` column in line with the user's Spatie role, so code and
+     * reports that still read the column see the real role instead of the 'admin' default.
+     */
+    public function syncRoleColumnFromSpatie(): void
+    {
+        $names = $this->roles()->pluck('name');
+
+        // Prefer the most privileged known role, matching RoleEnum's values
+        $priority = [
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_TREASURER, self::ROLE_FINANCE_ADMIN,
+            self::ROLE_DIVISION_HEAD, self::ROLE_SECTION_HEAD, self::ROLE_APPROVER, self::ROLE_REQUESTER,
+        ];
+
+        $role = collect($priority)->first(fn ($r) => $names->contains($r));
+
+        if ($names->isNotEmpty() && $role === null) {
+            $role = self::ROLE_REQUESTER; // only non-app roles (e.g. panel_user)
+        }
+
+        if ($role !== null) {
+            $this->forceFill(['role' => $role])->saveQuietly();
+        }
+    }
+
+    /**
+     * Active admins (is_admin flag, admin/super_admin column role or Spatie role).
+     */
+    public function scopeAdmins($query)
+    {
+        return $query->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_admin', true)
+                    ->orWhere(fn ($q) => $q->withAppRole([self::ROLE_ADMIN, self::ROLE_SUPER_ADMIN]));
+            });
     }
 
     /**

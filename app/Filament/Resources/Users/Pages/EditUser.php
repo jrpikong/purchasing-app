@@ -22,4 +22,12 @@ class EditUser extends EditRecord
             RestoreAction::make(),
         ];
     }
+
+    /**
+     * Keep the legacy `role` column in line with the Spatie roles chosen in the form.
+     */
+    protected function afterSave(): void
+    {
+        $this->getRecord()->syncRoleColumnFromSpatie();
+    }
 }

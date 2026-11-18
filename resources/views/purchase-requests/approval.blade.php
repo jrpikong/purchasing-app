@@ -231,7 +231,7 @@
                                 </div>
                                 <div class="flex-1">
                                     <div class="flex items-center justify-between">
-                                        <p class="text-sm font-medium text-gray-900">{{ $history->actor?->name ?? '—' }}</p>
+                                        <p class="text-sm font-medium text-gray-900">{{ $history->actor?->name ?? 'System' }}</p>
                                         <p class="text-xs text-gray-500">{{ $history->acted_at?->format('d M Y H:i') }}</p>
                                     </div>
                                     <p class="mt-1 text-sm text-gray-600">

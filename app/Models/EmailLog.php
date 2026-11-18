@@ -18,6 +18,7 @@ class EmailLog extends Model
     protected $fillable = [
         'purchase_request_id',
         'recipient_id',
+        'notification_id',
         'email_type',
         'email_to',
         'email_cc',

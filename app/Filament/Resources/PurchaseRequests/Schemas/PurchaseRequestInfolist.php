@@ -162,6 +162,7 @@ class PurchaseRequestInfolist
                                     ->dateTime('d M Y H:i'),
 
                                 TextEntry::make('actor.name')
+                                    ->default('System')
                                     ->label('Actor'),
 
                                 TextEntry::make('action')

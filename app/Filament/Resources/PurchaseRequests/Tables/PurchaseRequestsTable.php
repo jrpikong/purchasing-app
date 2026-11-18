@@ -189,9 +189,8 @@ class PurchaseRequestsTable
                         Select::make('assigned_pic_id')
                             ->label('Select PIC')
                             ->options(
-                                User::where('is_active', true)
-                                    ->whereIn('role', ['admin', 'super_admin'])
-                                    ->pluck('name', 'id')
+                                // Same definition of "admin" as emails & policies (column, Spatie role or is_admin)
+                                fn () => User::query()->admins()->orderBy('name')->pluck('name', 'id')
                             )
                             ->required()
                             ->searchable(),
@@ -233,20 +232,13 @@ class PurchaseRequestsTable
                     ])
                     ->action(function (PurchaseRequest $record, array $data) {
                         $service = app(PurchaseRequestApprovalService::class);
-                        $approver = $record->getFirstApprover();
-                        if (! $approver) {
-                            FilamentNotification::make()
-                                ->danger()
-                                ->title('Error')
-                                ->body('Tidak ditemukan approval flow yang sesuai untuk departemen/nominal PR ini. Hubungi admin untuk mengatur Approval Flow atau kepala departemen terkait.')
-                                ->send();
-                            return;
-                        }
 
                         try {
-                            $service->sendForApproval(
+                            // The service resolves the first approver (skipping the requester)
+                            // and explains exactly what's wrong if the flow can't be routed.
+                            $sent = $service->sendForApproval(
                                 $record,
-                                $approver,
+                                null,
                                 auth()->user(),
                                 isset($data['deadline']) ? \Carbon\Carbon::parse($data['deadline']) : null
                             );
@@ -254,7 +246,7 @@ class PurchaseRequestsTable
                             FilamentNotification::make()
                                 ->success()
                                 ->title('Sent for Approval')
-                                ->body("Successfully sent to {$approver->name}")
+                                ->body('Successfully sent to ' . ($sent->currentApprover?->name ?? '—'))
                                 ->send();
                         } catch (\Exception $e) {
                             FilamentNotification::make()
@@ -422,6 +414,9 @@ class PurchaseRequestsTable
                 // Resubmit after revision (requester)
                 static::resubmitAction(),
 
+                // Resend approval link (admin) — expired/lost email
+                static::resendApprovalLinkAction(),
+
                 // Mark as Completed Action
                 Action::make('mark_completed')
                     ->label('Mark as Completed')
@@ -466,6 +461,44 @@ class PurchaseRequestsTable
                     RestoreBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Admin re-issues the approval email with a fresh link. Shared with the view page.
+     */
+    public static function resendApprovalLinkAction(): Action
+    {
+        return Action::make('resend_approval_link')
+            ->label('Kirim Ulang Link Approval')
+            ->icon('heroicon-o-envelope')
+            ->color('gray')
+            ->visible(fn (PurchaseRequest $record) =>
+                auth()->user()->can('resendApprovalLink', $record)
+            )
+            ->requiresConfirmation()
+            ->modalHeading('Kirim Ulang Link Approval')
+            ->modalDescription(fn (PurchaseRequest $record) =>
+                'Email approval baru akan dikirim ke ' . ($record->currentApprover?->name ?? 'approver saat ini')
+                . '. Link lama tidak berlaku lagi.'
+            )
+            ->action(function (PurchaseRequest $record) {
+                try {
+                    $pr = app(PurchaseRequestApprovalService::class)
+                        ->resendApprovalLink($record, auth()->user());
+
+                    FilamentNotification::make()
+                        ->success()
+                        ->title('Link approval dikirim ulang')
+                        ->body('Email dikirim ke ' . ($pr->currentApprover?->name ?? '—'))
+                        ->send();
+                } catch (\Exception $e) {
+                    FilamentNotification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body($e->getMessage())
+                        ->send();
+                }
+            });
     }
 
     /**

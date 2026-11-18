@@ -39,7 +39,7 @@ class AdminDashboard extends Page
 
     public static function canView(): bool
     {
-        return FilamentView::auth()->user()->hasRole(['admin', 'super_admin']);
+        return FilamentView::auth()->user()->hasAppRole(['admin', 'super_admin']);
     }
 
     public function getView(): string

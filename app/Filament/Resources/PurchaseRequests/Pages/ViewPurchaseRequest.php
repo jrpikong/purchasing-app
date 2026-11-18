@@ -18,6 +18,7 @@ class ViewPurchaseRequest extends ViewRecord
                 ->visible(fn ($record) => auth()->user()->can('update', $record)),
             PurchaseRequestsTable::resubmitAction()
                 ->after(fn () => $this->refreshFormData(['status'])),
+            PurchaseRequestsTable::resendApprovalLinkAction(),
         ];
     }
 

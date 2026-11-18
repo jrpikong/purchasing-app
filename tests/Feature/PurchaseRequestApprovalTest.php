@@ -282,17 +282,19 @@ class PurchaseRequestApprovalTest extends TestCase
     public function test_legacy_pr_with_unknown_chain_position_is_not_auto_approved(): void
     {
         // PR sent before the snapshot columns existed, whose approver is no longer in the flow
+        $formerHead = User::factory()->create(['role' => 'approver', 'is_active' => true]);
+
         $pr = $this->makePr(75_000_000);
         $pr->update([
             'status' => PurchaseRequestStatus::WAITING_APPROVAL,
-            'current_approver_id' => $this->requester->id,
+            'current_approver_id' => $formerHead->id,
         ]);
 
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('tidak dapat ditentukan');
 
         try {
-            $this->service->approve($pr->fresh(), $this->requester);
+            $this->service->approve($pr->fresh(), $formerHead);
         } finally {
             $this->assertSame(PurchaseRequestStatus::WAITING_APPROVAL, $pr->fresh()->status);
         }

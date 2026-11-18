@@ -71,32 +71,35 @@ class ApprovalLevel extends Model
                     return $sectionHead;
                 }
 
-                return User::where('role', User::ROLE_SECTION_HEAD)
-                    ->where('is_active', true)
-                    ->first();
+                return $this->firstActiveWithRole(User::ROLE_SECTION_HEAD);
 
             case self::ROLE_TYPE_DIVISION_HEAD:
-                return User::where('role', User::ROLE_DIVISION_HEAD)
-                    ->where('is_active', true)
-                    ->first();
+                return $this->firstActiveWithRole(User::ROLE_DIVISION_HEAD);
 
             case self::ROLE_TYPE_FINANCE_ADMIN:
-                return User::where('role', User::ROLE_FINANCE_ADMIN)
-                    ->where('is_active', true)
-                    ->first();
+                return $this->firstActiveWithRole(User::ROLE_FINANCE_ADMIN);
 
             case self::ROLE_TYPE_TREASURER:
-                return User::where('role', User::ROLE_TREASURER)
-                    ->where('is_active', true)
-                    ->first();
+                return $this->firstActiveWithRole(User::ROLE_TREASURER);
 
             case self::ROLE_TYPE_ROLE_BASED:
-                return User::where('role', $this->role_name)
-                    ->where('is_active', true)
-                    ->first();
+                return $this->role_name ? $this->firstActiveWithRole($this->role_name) : null;
         }
 
         return null;
+    }
+
+    /**
+     * First active user holding the role — via the `role` column or a Spatie role
+     * (users created in the Filament user form only get Spatie roles).
+     */
+    private function firstActiveWithRole(string $role): ?User
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->withAppRole($role)
+            ->orderBy('id')
+            ->first();
     }
 
     /**
